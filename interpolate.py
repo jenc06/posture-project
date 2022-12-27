@@ -12,16 +12,21 @@ import csv
 
 # gyro, mag, acc
 DATA_DIR = "./data/good/"
-df_list = glob.glob(os.path.join(DATA_DIR, "*.csv"))
 
 # use fixed sample intervals (in ms) based on ODR of the sensors
+# NOTE: Gyro is sampled 5x slower than the accelerometer
 ACC_INTERVAL = 20
 GYR_INTERVAL = ACC_INTERVAL
 MAG_INTERVAL = 100
+STRIDE = int(MAG_INTERVAL/ACC_INTERVAL)
 
 NB_SENSORS = 3  # A, B, C
 NB_DOF = 3  # acc, gyr, mag
 NB_AXES = 3
+
+# 'CA': A, 'DF': B, 'FF': C
+SENSOR_ID = {'CA_C5_44_E0_3B_C3': 0, 'DF_D6_82_88_AF_42': 1, 'FF_EB_CA_C9_92_CF': 2}
+DOF_ID = {'acc': 0, 'gyr': 1, 'mag': 2}
 
 
 def find_min_max_times(dfl: list[str]) -> tuple[list, int, int]:
@@ -62,8 +67,17 @@ def remove_duplicates(arr: np.ndarray):
     return np.delete(arr, dup, axis=0)
 
 
+def get_sensor_id(filename: str) -> str:
+    return filename[-21:-4]
+
+
+def get_dof_id(filename: str) -> str:
+    return filename[:3]
+
+
 def interpolate_signals(t_min: int, t_max: int, dfl: list[pd.DataFrame], raw_data: list[np.ndarray]):
     x_new_acc = np.arange(t_min, t_max, ACC_INTERVAL)  # type is array
+    x_new_gyr = x_new_acc
     x_new_mag = np.arange(t_min, t_max, MAG_INTERVAL)
 
     # make sure to add data at beginning, not inside for loop. or else replaced w zeros each time
@@ -78,41 +92,84 @@ def interpolate_signals(t_min: int, t_max: int, dfl: list[pd.DataFrame], raw_dat
         x = arr[:, 0]
         csv_filename = os.path.split(df)[-1]
 
+        sensor_id = SENSOR_ID[get_sensor_id(csv_filename)]
+        dof_id = DOF_ID[get_dof_id(csv_filename)]
+
+        # calculate the index of the column to which the data is to be stored
+        # The offset 1 is for the timestamp column.
+        col_idx = sensor_id * (NB_DOF * NB_AXES) + dof_id * NB_DOF + 1
+
+        # Recall that gyro is sampled 5x slower than the accelerometer
+        assert MAG_INTERVAL % ACC_INTERVAL == 0, \
+            "Accelerometer interval should be divisible by magnetometer interval"
+
         # interpolate each of the axis values(x, y, z)
-        for i in range(1, 4):
-            y = arr[:, i]
+        for i in range(NB_AXES):
+            y = arr[:, i+1]
             f = interpolate.interp1d(x, y, kind='slinear')
             if csv_filename.startswith('acc') or csv_filename.startswith('gyr'):
                 x_new, y_new = x_new_acc, f(x_new_acc)
-                interp_results[:, 3 * count + i] = y_new
+                interp_results[:, col_idx+i] = y_new
             else:
                 x_new, y_new = x_new_mag, f(x_new_mag)
-                interp_results[::5, 3 * count + i] = y_new
+                interp_results[::STRIDE, col_idx+i] = y_new
 
     return interp_results
 
-    # # plot(do when you want to visualize data. not always necessary)
-    # plt.figure(figsize=(35, 20))
-    # plt.plot(x, y, '-o', xnew, ynew, '-*')
-    # plt.title(df, fontsize=30)
-    # plt.xticks(np.arange(tmin, tmax, step=196))  # Set label locations.
-    # plt.xticks(fontsize=15)
-    # plt.yticks(fontsize=15)
-    # plt.xlabel("Epoch(ms)", fontsize=20)
-    # if df.startswith("acc"):
-    #     plt.ylabel("Accelerometer value(g)", fontsize=20)
-    # elif df.startswith("gyr"):
-    #     plt.ylabel("Gyroscope value(degrees/second)", fontsize=20)
-    # else:
-    #     plt.ylabel("Magnetometer value(microtesla)", fontsize=20)
-    # plt.show()
+
+def plot_interpolated_data(min_ts: int, max_ts: int,
+                           x: np.ndarray, y: np.ndarray,
+                           x_new: np.ndarray, y_new: np.ndarray,
+                           data_filename: str) -> None:
+    # plot(do when you want to visualize data. not always necessary)
+    data_filename = os.path.split(data_filename)[-1]
+    plt.figure(figsize=(15, 10))
+    plt.plot(x, y, '-o', x_new, y_new, '-*')
+    plt.title(data_filename, fontsize=10)
+    plt.xticks(np.arange(min_ts, max_ts, step=196))  # Set label locations.
+    plt.xticks(fontsize=5)
+    plt.yticks(fontsize=5)
+    plt.xlabel("Epoch(ms)", fontsize=5)
+    if data_filename.startswith("acc"):
+        plt.ylabel("Accelerometer value(g)", fontsize=10)
+    elif data_filename.startswith("gyr"):
+        plt.ylabel("Gyroscope value(degrees/second)", fontsize=10)
+    else:
+        plt.ylabel("Magnetometer value(microtesla)", fontsize=10)
+    plt.show()
+
+
+def test_visualization(df_list_test: list[str], interp_data) -> None:
+    # visualize the results
+    test_file = df_list_test[1]
+    raw_data_test = np.loadtxt(test_file, delimiter=",")
+    csv_filename_test = os.path.split(test_file)[-1]
+
+    # calculate the index of the column in which the data is stored
+    print(f"Loading csv file: {csv_filename_test}")
+    sensor_idx = SENSOR_ID[get_sensor_id(csv_filename_test)]  # sensor A
+    dof_idx = DOF_ID[get_dof_id(csv_filename_test)]  # accelerometer
+    vis_axis = 'x'
+    axis_idx = {'x': 0, 'y': 1, 'z': 2}
+    col_ndx = sensor_idx * (NB_DOF * NB_AXES) + dof_idx * NB_AXES + 1
+
+    x_vis, y_vis = raw_data_test[:, 0], raw_data_test[:, axis_idx[vis_axis] + 1]
+    if get_dof_id(csv_filename_test) == 'mag':
+        x_new_vis, y_new_vis = interp_data[::STRIDE, 0], interp_data[::STRIDE, col_ndx + axis_idx[vis_axis]]
+    else:
+        x_new_vis, y_new_vis = interp_data[:, 0], interp_data[:, col_ndx + axis_idx[vis_axis]]
+    plot_interpolated_data(min_t, max_t, x_vis, y_vis, x_new_vis, y_new_vis, csv_filename_test)
 
 
 if __name__ == "__main__":
+    df_list = glob.glob(os.path.join(DATA_DIR, "*.csv"))
+
     raw_imu_data, min_t, max_t = find_min_max_times(df_list)
     interpolated_data = interpolate_signals(min_t, max_t, df_list, raw_imu_data)
-
     final_df = pd.DataFrame(interpolated_data)
-    # change this later
+
     os.makedirs('./data/preprocessed', exist_ok=True)
     final_df.to_csv("./data/preprocessed/final_interpolated_test.csv")
+
+    # visualize the results
+    test_visualization(df_list, interpolated_data)
