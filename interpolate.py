@@ -76,23 +76,27 @@ def interpolate_signals(tmin: int, tmax: int, dfl: list[pd.DataFrame], a_list: l
 
         x = arr[:, 0]
         print(count, x[0], x[-1], arr.shape)
-        if count == 2:
-            for i in range(x.size - 1):
-                if x[i + 1] == x[i]:
-                    import pdb;
-                    pdb.set_trace()
+        # if count == 2:
+        #     for i in range(x.size - 1):
+        #         if x[i + 1] == x[i]:
+        #             import pdb;
+        #             pdb.set_trace()
 
+        print(df)
+        csv_fname = os.path.split(df)[-1]
+        print(csv_fname)
         # interpolate each of the axis values(x, y, z)
         for i in range(1, 4):
             y = arr[:, i]
             f = interpolate.interp1d(x, y, kind='slinear')
-            if df.startswith('acc') or df.startswith('gyr'):
+            if csv_fname.startswith('acc') or csv_fname.startswith('gyr'):
                 ynew = f(xnew_acc)
                 xnew = xnew_acc
+                print('acc')
                 data[:, 3 * count + i] = ynew
                 # print(ynew[:5], data[:5,3*count+i])
-
             else:
+                print('mag')
                 ynew = f(xnew_mag)
                 xnew = xnew_mag
                 data[::5, 3 * count + i] = ynew
