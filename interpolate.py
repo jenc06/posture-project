@@ -1,3 +1,5 @@
+from typing import List, Any
+
 import pandas as pd
 import numpy as np
 from scipy import stats as st
@@ -34,8 +36,7 @@ def find_min_max_times(dfl: list[str]) -> list:
     t_max: int = sys.maxsize
 
     # list for all acc, gyro, and mag values
-    a_list = []
-    imu_data = []
+    a_list: list[np.ndarray] = []
     for count, df in enumerate(dfl):
         imu_data = np.loadtxt(df, delimiter=",")
 
