@@ -77,7 +77,6 @@ def get_dof_id(filename: str) -> str:
 
 def interpolate_signals(t_min: int, t_max: int, dfl: list[pd.DataFrame], raw_data: list[np.ndarray]):
     x_new_acc = np.arange(t_min, t_max, ACC_INTERVAL)  # type is array
-    x_new_gyr = x_new_acc
     x_new_mag = np.arange(t_min, t_max, MAG_INTERVAL)
 
     # make sure to add data at beginning, not inside for loop. or else replaced w zeros each time
