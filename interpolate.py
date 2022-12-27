@@ -24,7 +24,7 @@ NB_DOF = 3  # acc, gyr, mag
 NB_AXES = 3
 
 
-def find_min_max_times(dfl: list[str]) -> list:
+def find_min_max_times(dfl: list[str]) -> tuple[list, int, int]:
     """ Find the minimum and maximum timestamps for all the sensor data
     to prepare for the interpolation.
 
@@ -67,10 +67,10 @@ def interpolate_signals(t_min: int, t_max: int, dfl: list[pd.DataFrame], raw_dat
     x_new_mag = np.arange(t_min, t_max, MAG_INTERVAL)
 
     # make sure to add data at beginning, not inside for loop. or else replaced w zeros each time
-    data = np.zeros((x_new_acc.size, 1 + NB_SENSORS * NB_DOF * NB_AXES))
+    interp_results = np.zeros((x_new_acc.size, 1 + NB_SENSORS * NB_DOF * NB_AXES))
 
     # timestamps at which the signals are interpolated
-    data[:, 0] = x_new_acc
+    interp_results[:, 0] = x_new_acc
 
     # need to do this after finding t_min and tmax
     for count, df in enumerate(dfl):
@@ -84,12 +84,12 @@ def interpolate_signals(t_min: int, t_max: int, dfl: list[pd.DataFrame], raw_dat
             f = interpolate.interp1d(x, y, kind='slinear')
             if csv_filename.startswith('acc') or csv_filename.startswith('gyr'):
                 x_new, y_new = x_new_acc, f(x_new_acc)
-                data[:, 3 * count + i] = y_new
+                interp_results[:, 3 * count + i] = y_new
             else:
                 x_new, y_new = x_new_mag, f(x_new_mag)
-                data[::5, 3 * count + i] = y_new
+                interp_results[::5, 3 * count + i] = y_new
 
-    return data
+    return interp_results
 
     # # plot(do when you want to visualize data. not always necessary)
     # plt.figure(figsize=(35, 20))
@@ -109,10 +109,10 @@ def interpolate_signals(t_min: int, t_max: int, dfl: list[pd.DataFrame], raw_dat
 
 
 if __name__ == "__main__":
-    a_list, min_t, max_t = find_min_max_times(df_list)
-    data = interpolate_signals(min_t, max_t, df_list, a_list)
+    raw_imu_data, min_t, max_t = find_min_max_times(df_list)
+    interpolated_data = interpolate_signals(min_t, max_t, df_list, raw_imu_data)
 
-    final_df = pd.DataFrame(data)
+    final_df = pd.DataFrame(interpolated_data)
     # change this later
     os.makedirs('./data/preprocessed', exist_ok=True)
     final_df.to_csv("./data/preprocessed/final_interpolated_test.csv")
