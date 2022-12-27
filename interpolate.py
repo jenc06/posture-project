@@ -22,7 +22,13 @@ NB_DOF = 3  # acc, gyr, mag
 NB_AXES = 3
 
 
-def find_min_max_times(dfl: list[pd.DataFrame]) -> list:
+def find_min_max_times(dfl: list[str]) -> list:
+    """ Find the minimum and maximum timestamps for all the sensor data
+    to prepare for the interpolation.
+
+    :param dfl: list of strings storing the locations of the sensor data files.
+    :return: list of the dataframes storing the imu data and min and max timestamps
+    """
     # time start and finish variables
     t_min: int = 0
     t_max: int = sys.maxsize
@@ -32,8 +38,7 @@ def find_min_max_times(dfl: list[pd.DataFrame]) -> list:
     imu_data = []
     for count, df in enumerate(dfl):
         imu_data = np.loadtxt(df, delimiter=",")
-        print(imu_data.shape)
-        print(imu_data[0, 0], imu_data[-1, 0])
+
         if imu_data[0, 0] > t_min:
             t_min = imu_data[0, 0]
         if imu_data[-1, 0] < t_max:
@@ -56,50 +61,32 @@ def remove_duplicates(arr: np.ndarray):
     return np.delete(arr, dup, axis=0)
 
 
-def interpolate_signals(tmin: int, tmax: int, dfl: list[pd.DataFrame], a_list: list[np.ndarray]):
-    xnew_acc = np.arange(tmin, tmax, ACC_INTERVAL)  # type is array
-    xnew_mag = np.arange(tmin, tmax, MAG_INTERVAL)
-
-    print("..........", xnew_acc.shape, xnew_mag.shape)
+def interpolate_signals(t_min: int, t_max: int, dfl: list[pd.DataFrame], raw_data: list[np.ndarray]):
+    x_new_acc = np.arange(t_min, t_max, ACC_INTERVAL)  # type is array
+    x_new_mag = np.arange(t_min, t_max, MAG_INTERVAL)
 
     # make sure to add data at beginning, not inside for loop. or else replaced w zeros each time
-    data = np.zeros((xnew_acc.size, 1 + NB_SENSORS * NB_DOF * NB_AXES))
-    print(a_list[0].shape)
-    print(len(a_list))
+    data = np.zeros((x_new_acc.size, 1 + NB_SENSORS * NB_DOF * NB_AXES))
 
-    # create new array filled with zeros for each axis data
-    data[:, 0] = xnew_acc
+    # timestamps at which the signals are interpolated
+    data[:, 0] = x_new_acc
 
-    # need to do this after finding tmin and tmax
+    # need to do this after finding t_min and tmax
     for count, df in enumerate(dfl):
-        arr = remove_duplicates(a_list[count])
-
+        arr = remove_duplicates(raw_data[count])
         x = arr[:, 0]
-        print(count, x[0], x[-1], arr.shape)
-        # if count == 2:
-        #     for i in range(x.size - 1):
-        #         if x[i + 1] == x[i]:
-        #             import pdb;
-        #             pdb.set_trace()
+        csv_filename = os.path.split(df)[-1]
 
-        print(df)
-        csv_fname = os.path.split(df)[-1]
-        print(csv_fname)
         # interpolate each of the axis values(x, y, z)
         for i in range(1, 4):
             y = arr[:, i]
             f = interpolate.interp1d(x, y, kind='slinear')
-            if csv_fname.startswith('acc') or csv_fname.startswith('gyr'):
-                ynew = f(xnew_acc)
-                xnew = xnew_acc
-                print('acc')
-                data[:, 3 * count + i] = ynew
-                # print(ynew[:5], data[:5,3*count+i])
+            if csv_filename.startswith('acc') or csv_filename.startswith('gyr'):
+                x_new, y_new = x_new_acc, f(x_new_acc)
+                data[:, 3 * count + i] = y_new
             else:
-                print('mag')
-                ynew = f(xnew_mag)
-                xnew = xnew_mag
-                data[::5, 3 * count + i] = ynew
+                x_new, y_new = x_new_mag, f(x_new_mag)
+                data[::5, 3 * count + i] = y_new
 
     return data
 
@@ -121,12 +108,10 @@ def interpolate_signals(tmin: int, tmax: int, dfl: list[pd.DataFrame], a_list: l
 
 
 if __name__ == "__main__":
-    a_list, t_min, t_max = find_min_max_times(df_list)
-
-    print("....", t_min, t_max)
-
-    data = interpolate_signals(t_min, t_max, df_list, a_list)
+    a_list, min_t, max_t = find_min_max_times(df_list)
+    data = interpolate_signals(min_t, max_t, df_list, a_list)
 
     final_df = pd.DataFrame(data)
     # change this later
-    final_df.to_csv("final_interpolated_test.csv")
+    os.makedirs('./data/preprocessed', exist_ok=True)
+    final_df.to_csv("./data/preprocessed/final_interpolated_test.csv")
