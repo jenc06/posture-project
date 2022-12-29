@@ -10,8 +10,8 @@ import os
 import glob
 import csv
 
-# gyro, mag, acc
-DATA_DIR = "./data/good/"
+# Change CLASS to the target class label to process the data associated with the given class
+CLASSES = ['good', 'bad', 'mild']
 
 # use fixed sample intervals (in ms) based on ODR of the sensors
 # NOTE: Mag is sampled 5x slower than the accelerometer
@@ -22,7 +22,7 @@ STRIDE = int(MAG_INTERVAL/ACC_INTERVAL)
 
 NB_SENSORS = 3  # A, B, C
 NB_DOF = 3  # acc, gyr, mag
-NB_AXES = 3
+NB_AXES = 3 # x, y, z
 
 # 'CA': A, 'DF': B, 'FF': C
 SENSOR_ID = {'CA_C5_44_E0_3B_C3': 0, 'DF_D6_82_88_AF_42': 1, 'FF_EB_CA_C9_92_CF': 2}
@@ -52,8 +52,6 @@ def find_min_max_times(dfl: list[str]) -> tuple[list, int, int]:
         if imu_data[-1, 0] < t_max:
             t_max = imu_data[-1, 0]
 
-        print(t_min, t_max)
-
         a_list.append(imu_data)
 
     assert t_min <= t_max, "t_min must be no greater than t_max"
@@ -62,15 +60,27 @@ def find_min_max_times(dfl: list[str]) -> tuple[list, int, int]:
 
 
 def extract_trial_ids(file_list: list[str]):
-    trial_ids = set()
+    trial_ids_ = set()
     for file in file_list:
         filename = os.path.split(file)[-1]
         start_ndx = filename.find('_t_')
 
         # NOTE: The trial id string size is assumed to be 3.
         # If the size changes, please change 6 to reflect the new size.
-        trial_ids.add(filename[start_ndx+3:start_ndx+6])
-    return trial_ids
+        trial_ids_.add(filename[start_ndx+3:start_ndx+6])
+    return trial_ids_
+
+
+def extract_subject_ids(file_list: list[str]):
+    sub_ids_ = set()
+    for file in file_list:
+        filename = os.path.split(file)[-1]
+        start_ndx = filename.find('_s_')
+
+        # NOTE: The subject id string size is assumed to be 3.
+        # If the size changes, please change 6 to reflect the new size.
+        sub_ids_.add(filename[start_ndx + 3:start_ndx + 6])
+    return sub_ids_
 
 
 def remove_duplicates(arr: np.ndarray):
@@ -158,7 +168,8 @@ def plot_interpolated_data(min_ts: int, max_ts: int,
 
 def test_visualization(df_list_test: list[str], interp_data) -> None:
     # visualize the results
-    test_file = df_list_test[2] #change index for different degree of freedom?
+    # change index for different degree of freedom
+    test_file = df_list_test[2]
     raw_data_test = np.loadtxt(test_file, delimiter=",")
     csv_filename_test = os.path.split(test_file)[-1]
 
@@ -179,18 +190,23 @@ def test_visualization(df_list_test: list[str], interp_data) -> None:
 
 
 if __name__ == "__main__":
-    df_list = glob.glob(os.path.join(DATA_DIR, "*.csv"))
-    print(df_list)
-    print(extract_trial_ids(df_list))
+    for cls in CLASSES:
+        data_dir = f'./data/{cls}'
+        df_list = glob.glob(os.path.join(data_dir, "*.csv"))
 
-    raw_imu_data, min_t, max_t = find_min_max_times(df_list)
-    # print(min_t, max_t)
-    interpolated_data = interpolate_signals(min_t, max_t, df_list, raw_imu_data)
-    # print(interpolated_data.shape)
-    final_df = pd.DataFrame(interpolated_data)
+        trial_ids = extract_trial_ids(df_list)
+        sub_ids = extract_subject_ids(df_list)
 
-    os.makedirs('./data/preprocessed', exist_ok=True)
-    final_df.to_csv("./data/preprocessed/final_interpolated_good.csv")
+        for sub_id in sub_ids:
+            for trial_id in trial_ids:
+                df_list = glob.glob(os.path.join(data_dir, f"*_s_{sub_id}_t_{trial_id}*.csv"))
 
-    # visualize the results
-    # test_visualization(df_list, interpolated_data)
+                raw_imu_data, min_t, max_t = find_min_max_times(df_list)
+                interpolated_data = interpolate_signals(min_t, max_t, df_list, raw_imu_data)
+                final_df = pd.DataFrame(interpolated_data)
+
+                os.makedirs('./data/preprocessed', exist_ok=True)
+                final_df.to_csv(f"./data/preprocessed/final_interpolated_{cls}_s_{sub_id}_t_{trial_id}.csv")
+
+                # visualize the results
+                # test_visualization(df_list, interpolated_data)
