@@ -4,8 +4,6 @@ import os
 import glob
 import csv
 from csv import DictWriter
-gi
-#add header names(time, x,y,z)
 
 #list file names
 file_path = "Documents/ASR/notebooks/interpolated data" 

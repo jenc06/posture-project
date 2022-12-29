@@ -14,7 +14,7 @@ import csv
 DATA_DIR = "./data/good/"
 
 # use fixed sample intervals (in ms) based on ODR of the sensors
-# NOTE: Gyro is sampled 5x slower than the accelerometer
+# NOTE: Mag is sampled 5x slower than the accelerometer
 ACC_INTERVAL = 20
 GYR_INTERVAL = ACC_INTERVAL
 MAG_INTERVAL = 100
@@ -98,7 +98,7 @@ def interpolate_signals(t_min: int, t_max: int, dfl: list[pd.DataFrame], raw_dat
         # The offset 1 is for the timestamp column.
         col_idx = sensor_id * (NB_DOF * NB_AXES) + dof_id * NB_DOF + 1
 
-        # Recall that gyro is sampled 5x slower than the accelerometer
+        # Recall that mag is sampled 5x slower than the accelerometer
         assert MAG_INTERVAL % ACC_INTERVAL == 0, \
             "Accelerometer interval should be divisible by magnetometer interval"
 
@@ -140,7 +140,7 @@ def plot_interpolated_data(min_ts: int, max_ts: int,
 
 def test_visualization(df_list_test: list[str], interp_data) -> None:
     # visualize the results
-    test_file = df_list_test[1]
+    test_file = df_list_test[2] #change index for different degree of freedom?
     raw_data_test = np.loadtxt(test_file, delimiter=",")
     csv_filename_test = os.path.split(test_file)[-1]
 
