@@ -46,6 +46,7 @@ filenames = [acc_data_filename, gyro_data_filename, mag_data_filename]
 if sys.version_info[0] == 2:
     range = xrange
 
+
 class State:
     # init
     def __init__(self, device):
