@@ -59,38 +59,32 @@ class State:
         self.mag_data_filename = ''
     
     def name_make(self):
-       
+        # do self to make sure it is global inside class
         fn, fn_ext = os.path.splitext(acc_data_filename)
         fn += "_" + self.device.address
         self.acc_data_filename = fn + fn_ext
-        #do self to make sure it is global inside class
-        
-       
+
         fn, fn_ext = os.path.splitext(gyro_data_filename)
         fn += "_"+self.device.address
         self.gyro_data_filename = fn + fn_ext
-        
-        
+
         fn, fn_ext = os.path.splitext(mag_data_filename)
         fn += "_"+self.device.address
         self.mag_data_filename = fn + fn_ext
-        
                 
     def acc_data_handler(self, ctx, data):
         values = parse_value(data)
-        
-        
-        #save file
+
+        # save file
         with open(f'../data/{args.pose}/{self.acc_data_filename}', "a", newline="") as f:
             csv_writer = csv.writer(f, delimiter=",")
             csv_writer.writerow([data.contents.epoch, values.x, values.y, values.z])
         
         print("ACCEL: %s -> epoch: %s, data: %s" % (self.device.address, data.contents.epoch, values))
         self.samples+= 1
-        
-                
-    # gyro callback
+
     def gyro_data_handler(self, ctx, data):
+        # gyro callback
         values = parse_value(data)
         
         with open(f'../data/{args.pose}/{self.gyro_data_filename}', "a", newline="") as f:
@@ -111,7 +105,6 @@ class State:
         self.samples+= 1
         
 
-
 states = []
 device_ips = ["CA:C5:44:E0:3B:C3", "FF:EB:CA:C9:92:CF", "DF:D6:82:88:AF:42"]
 # connect
@@ -122,7 +115,7 @@ for ndx, i in enumerate([0,1,2]):
     d = MetaWear(device_ips[i])
     d.disconnect()
     
-    while (True):
+    while True:
         try:
             d.disconnect()
             d.connect()
@@ -134,9 +127,6 @@ for ndx, i in enumerate([0,1,2]):
     
     states.append(State(d))
     states[ndx].name_make()
- 
-
-
 
 
 for s in states:
@@ -169,10 +159,9 @@ for s in states:
     gyro = libmetawear.mbl_mw_gyro_bmi270_get_packed_rotation_data_signal(s.device.board)
     libmetawear.mbl_mw_datasignal_subscribe(gyro, None, s.gyroCallback)
 
-    #get mag and subscribe
+    # get mag and subscribe
     mag = libmetawear.mbl_mw_mag_bmm150_get_b_field_data_signal(s.device.board)
     libmetawear.mbl_mw_datasignal_subscribe(mag, None, s.magCallback)
-    
 
     # start acc
     print("Start Acc")
