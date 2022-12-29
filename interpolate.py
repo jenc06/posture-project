@@ -45,14 +45,32 @@ def find_min_max_times(dfl: list[str]) -> tuple[list, int, int]:
     for count, df in enumerate(dfl):
         imu_data = np.loadtxt(df, delimiter=",")
 
+        assert imu_data[0, 0] <= imu_data[-1, 0], "min time must be no greater than max time"
+
         if imu_data[0, 0] > t_min:
             t_min = imu_data[0, 0]
         if imu_data[-1, 0] < t_max:
             t_max = imu_data[-1, 0]
 
+        print(t_min, t_max)
+
         a_list.append(imu_data)
 
+    assert t_min <= t_max, "t_min must be no greater than t_max"
+
     return a_list, t_min, t_max
+
+
+def extract_trial_ids(file_list: list[str]):
+    trial_ids = set()
+    for file in file_list:
+        filename = os.path.split(file)[-1]
+        start_ndx = filename.find('_t_')
+
+        # NOTE: The trial id string size is assumed to be 3.
+        # If the size changes, please change 6 to reflect the new size.
+        trial_ids.add(filename[start_ndx+3:start_ndx+6])
+    return trial_ids
 
 
 def remove_duplicates(arr: np.ndarray):
@@ -162,13 +180,17 @@ def test_visualization(df_list_test: list[str], interp_data) -> None:
 
 if __name__ == "__main__":
     df_list = glob.glob(os.path.join(DATA_DIR, "*.csv"))
+    print(df_list)
+    print(extract_trial_ids(df_list))
 
     raw_imu_data, min_t, max_t = find_min_max_times(df_list)
+    # print(min_t, max_t)
     interpolated_data = interpolate_signals(min_t, max_t, df_list, raw_imu_data)
+    # print(interpolated_data.shape)
     final_df = pd.DataFrame(interpolated_data)
 
     os.makedirs('./data/preprocessed', exist_ok=True)
-    final_df.to_csv("./data/preprocessed/final_interpolated_test.csv")
+    final_df.to_csv("./data/preprocessed/final_interpolated_good.csv")
 
     # visualize the results
-    test_visualization(df_list, interpolated_data)
+    # test_visualization(df_list, interpolated_data)
