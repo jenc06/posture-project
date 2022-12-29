@@ -21,7 +21,7 @@ for file in file_list[0:-1]:
         df_list.append(file+"_wcol.csv")
 
 #read each file w/ column names in df list
-df1= pd.read_csv(df_list[0])
+df1 = pd.read_csv(df_list[0])
 df2 = pd.read_csv(df_list[1])
 df3 = pd.read_csv(df_list[2])
 
