@@ -126,7 +126,8 @@ class State:
         self.samples+= 1
 
 # Check if the input subject and trial ids overwrite the existing data.
-check_data_conflicts()
+if check_data_conflicts():
+    print("No data naming conflict detected")
 
 states = []
 device_ips = ["CA:C5:44:E0:3B:C3", "FF:EB:CA:C9:92:CF", "DF:D6:82:88:AF:42"]
