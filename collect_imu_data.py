@@ -9,6 +9,7 @@ from threading import Event
 
 import csv
 import os
+import glob
 import argparse
 import platform
 import sys
@@ -34,7 +35,8 @@ if not args.pose:
     print("Please enter the posture type (good, mild, bad)")
     raise Exception("Missing posture type")
 
-DATA_DIR = f"../data/{args.pose}"
+DATA_DIR = f"./data/{args.pose}"
+os.makedirs(DATA_DIR, exist_ok=True)
 
 ts = date.today()
 now = datetime.now()
@@ -97,7 +99,7 @@ class State:
         values = parse_value(data)
 
         # save file
-        with open(f'../data/{args.pose}/{self.acc_data_filename}', "a", newline="") as f:
+        with open(f'{DATA_DIR}/{self.acc_data_filename}', "a", newline="") as f:
             csv_writer = csv.writer(f, delimiter=",")
             csv_writer.writerow([data.contents.epoch, values.x, values.y, values.z])
         
@@ -108,7 +110,7 @@ class State:
         # gyro callback
         values = parse_value(data)
         
-        with open(f'../data/{args.pose}/{self.gyro_data_filename}', "a", newline="") as f:
+        with open(f'{DATA_DIR}/{self.gyro_data_filename}', "a", newline="") as f:
             csv_writer = csv.writer(f, delimiter=",")
             csv_writer.writerow([data.contents.epoch, values.x, values.y, values.z])
         
@@ -118,7 +120,7 @@ class State:
     def mag_data_handler(self, ctx, data):
        
         values = parse_value(data)
-        with open(f'../data/{args.pose}/{self.mag_data_filename}', "a", newline="") as f:
+        with open(f'{DATA_DIR}/{self.mag_data_filename}', "a", newline="") as f:
             csv_writer = csv.writer(f, delimiter=",")
             csv_writer.writerow([data.contents.epoch, values.x, values.y, values.z])
          
@@ -202,8 +204,8 @@ for s in states:
     libmetawear.mbl_mw_mag_bmm150_enable_b_field_sampling(s.device.board)
     libmetawear.mbl_mw_mag_bmm150_start(s.device.board)
 
-# sleep
-sleep(30.0)
+# sleep (change this to change the length of the data to collect
+sleep(5.0)
 
 # stop
 for s in states:
