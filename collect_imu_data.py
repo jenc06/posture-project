@@ -49,7 +49,7 @@ if sys.version_info[0] == 2:
     range = xrange
 
 
-def check_data_conflicts():
+def check_data_conflicts() -> bool:
     existing_files = glob.glob(os.path.join(DATA_DIR, "*.csv"))
     for file in existing_files:
         filename = os.path.split(file)[-1]
@@ -63,6 +63,8 @@ def check_data_conflicts():
 
         if args.sub_id == sub_id and args.trial_id == trial_id:
             raise Exception(f"Data with the subject id {args.sub_id} and trial id {args.trial_id} already exists.")
+
+    return True
 
 
 class State:
@@ -122,7 +124,9 @@ class State:
          
         print("MAG: %s -> %s" % (self.device.address, parse_value(data)))
         self.samples+= 1
-        
+
+# Check if the input subject and trial ids overwrite the existing data.
+check_data_conflicts()
 
 states = []
 device_ips = ["CA:C5:44:E0:3B:C3", "FF:EB:CA:C9:92:CF", "DF:D6:82:88:AF:42"]
