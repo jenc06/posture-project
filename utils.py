@@ -12,6 +12,6 @@ if __name__ == "__main__":
         start_ndx = filename.find('_ts_')
 
         new_filename = filename[:start_ndx] + filename[start_ndx+22:]
-        new_filename = os.path.join(folder, new_filename)
+        new_filename = os.path.join(folder, new_filename.replace("/", "_"))
 
         os.rename(file, new_filename)
