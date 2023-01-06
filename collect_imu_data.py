@@ -38,7 +38,7 @@ DATA_DIR = f"../data/{args.pose}"
 
 ts = date.today()
 now = datetime.now()
-data_filename_suffix = f"s_{args.sub_id}_t_{args.trial_id}}.csv"
+data_filename_suffix = f"s_{args.sub_id}_t_{args.trial_id}.csv"
 acc_data_filename = "acc_" + data_filename_suffix
 gyro_data_filename = "gyro_" + data_filename_suffix
 mag_data_filename = "mag_"+data_filename_suffix
