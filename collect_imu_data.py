@@ -34,9 +34,11 @@ if not args.pose:
     print("Please enter the posture type (good, mild, bad)")
     raise Exception("Missing posture type")
 
+DATA_DIR = f"../data/{args.pose}"
+
 ts = date.today()
 now = datetime.now()
-data_filename_suffix = f"s_{args.sub_id}_t_{args.trial_id}_ts_{ts.strftime('%m-%d-%Y')}{now.strftime('%H-%M-%S')}.csv"
+data_filename_suffix = f"s_{args.sub_id}_t_{args.trial_id}}.csv"
 acc_data_filename = "acc_" + data_filename_suffix
 gyro_data_filename = "gyro_" + data_filename_suffix
 mag_data_filename = "mag_"+data_filename_suffix
@@ -45,6 +47,22 @@ filenames = [acc_data_filename, gyro_data_filename, mag_data_filename]
 
 if sys.version_info[0] == 2:
     range = xrange
+
+
+def check_data_conflicts():
+    existing_files = glob.glob(os.path.join(DATA_DIR, "*.*"))
+    for file in existing_files:
+        filename = os.path.split(file)[-1]
+        t_start_ndx = filename.find('_t_')
+        s_start_ndx = filename.find('_s_')
+
+        # NOTE: The trial id string size is assumed to be 3.
+        # If the size changes, please change 6 to reflect the new size.
+        trial_id = filename[t_start_ndx + 3:t_start_ndx + 6]
+        sub_id = filename[s_start_ndx + 3:s_start_ndx + 6]
+
+        if args.sub_id == sub_id and args.trial_id == trial_id:
+            raise Exception(f"Data with the subject id {args.sub_id} and trial id {args.trial_id} already exists.")
 
 
 class State:
