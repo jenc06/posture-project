@@ -11,7 +11,9 @@ if __name__ == "__main__":
         filename = os.path.split(file)[-1]
         start_ndx = filename.find('_ts_')
 
-        new_filename = filename[:start_ndx] + filename[start_ndx+22:]
-        new_filename = os.path.join(folder, new_filename.replace("/", "_"))
+        if start_ndx >= 0:
+            new_filename = filename[:start_ndx] + filename[start_ndx+22:]
+            new_filename = os.path.join(folder, new_filename.replace(":", "_"))
+            print(f"renaming {file} to {new_filename}")
 
-        os.rename(file, new_filename)
+            os.rename(file, new_filename)
