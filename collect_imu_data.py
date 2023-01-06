@@ -50,7 +50,7 @@ if sys.version_info[0] == 2:
 
 
 def check_data_conflicts():
-    existing_files = glob.glob(os.path.join(DATA_DIR, "*.*"))
+    existing_files = glob.glob(os.path.join(DATA_DIR, "*.csv"))
     for file in existing_files:
         filename = os.path.split(file)[-1]
         t_start_ndx = filename.find('_t_')
