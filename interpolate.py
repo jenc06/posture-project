@@ -9,6 +9,7 @@ import sys
 import os
 import glob
 import csv
+import warnings
 
 # Change CLASS to the target class label to process the data associated with the given class
 CLASSES = ['good', 'bad', 'mild']
@@ -36,6 +37,9 @@ def find_min_max_times(dfl: list[str]) -> tuple[list, int, int]:
     :param dfl: list of strings storing the locations of the sensor data files.
     :return: list of the dataframes storing the imu data and min and max timestamps
     """
+    if not dfl:
+        raise Exception("No data file supplied.")
+
     # time start and finish variables
     t_min: int = 0
     t_max: int = sys.maxsize
@@ -200,6 +204,9 @@ if __name__ == "__main__":
         for sub_id in sub_ids:
             for trial_id in trial_ids:
                 df_list = glob.glob(os.path.join(data_dir, f"*_s_{sub_id}_t_{trial_id}*.csv"))
+                if not df_list:
+                    warnings.warn(f"No data available for sub id: {sub_id} and trial id: {trial_id}", RuntimeWarning)
+                    continue
 
                 raw_imu_data, min_t, max_t = find_min_max_times(df_list)
                 interpolated_data = interpolate_signals(min_t, max_t, df_list, raw_imu_data)
