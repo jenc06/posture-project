@@ -84,15 +84,15 @@ class State:
     def name_make(self):
         # do self to make sure it is global inside class
         fn, fn_ext = os.path.splitext(acc_data_filename)
-        fn += "_" + self.device.address
+        fn += "_" + self.device.address.replace(':', '_')
         self.acc_data_filename = fn + fn_ext
 
         fn, fn_ext = os.path.splitext(gyro_data_filename)
-        fn += "_"+self.device.address
+        fn += "_"+self.device.address.replace(':', '_')
         self.gyro_data_filename = fn + fn_ext
 
         fn, fn_ext = os.path.splitext(mag_data_filename)
-        fn += "_"+self.device.address
+        fn += "_"+self.device.address.replace(':', '_')
         self.mag_data_filename = fn + fn_ext
                 
     def acc_data_handler(self, ctx, data):
