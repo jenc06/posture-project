@@ -141,13 +141,14 @@ if __name__ == "__main__":
 
     X, y = make_features(good_combined, mild_combined, bad_combined)
 
+    print("Running PCA")
     X_pca, y = run_pca(X, y)
+    print("Running MDS")
     # X_mds, y = run_mds(X, y)
+    print("Running t-SNE")
     X_tsne, y = run_tsne(X, y)
-    # plot3d_embedding(X_pca, y)
 
-    from xgboost import XGBClassifier
-    from sklearn.model_selection import cross_val_score
+    # plot3d_embedding(X_pca, y)
 
     print("XGBoost using the raw data")
     print(cross_val_score(XGBClassifier(), X, y))
