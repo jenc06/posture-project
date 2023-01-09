@@ -5,6 +5,8 @@ import os
 from sklearn import manifold
 from sklearn.decomposition import PCA
 import matplotlib.cm as cm
+from xgboost import XGBClassifier
+from sklearn.model_selection import cross_val_score
 
 
 PREPROCESSED_DATA_FOLDER = "./data/preprocessed/"
@@ -143,10 +145,10 @@ if __name__ == "__main__":
 
     print("Running PCA")
     X_pca, y = run_pca(X, y)
-    print("Running MDS")
+    # print("Running MDS")
     # X_mds, y = run_mds(X, y)
     print("Running t-SNE")
-    X_tsne, y = run_tsne(X, y)
+    # X_tsne, y = run_tsne(X, y)
 
     # plot3d_embedding(X_pca, y)
 
