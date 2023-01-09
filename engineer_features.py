@@ -1,7 +1,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import glob
+import os
 from sklearn import manifold
 from sklearn.decomposition import PCA
+import matplotlib.cm as cm
+
+
+PREPROCESSED_DATA_FOLDER = "./data/preprocessed/"
 
 
 def select_acc(sensor_data):
@@ -16,7 +22,7 @@ def select_mag(sensor_data):
     return np.hstack([sensor_data[:, 6:9], sensor_data[:, 15:18], sensor_data[:, 24:27]])
 
 
-def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: np.ndarray):
+def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: np.ndarray, gyr_skip: bool=True):
     good_acc, mild_acc, bad_acc = select_acc(good_interp), select_acc(mild_interp), select_acc(bad_interp)
     good_mag, mild_mag, bad_mag = select_mag(good_interp), select_mag(mild_interp), select_mag(bad_interp)
     good_gyr, mild_gyr, bad_gyr = select_gyr(good_interp), select_gyr(mild_interp), select_gyr(bad_interp)
@@ -24,6 +30,11 @@ def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: 
     good_ft = np.hstack([good_acc, good_mag, good_gyr])
     mild_ft = np.hstack([mild_acc, mild_mag, mild_gyr])
     bad_ft = np.hstack([bad_acc, bad_mag, bad_gyr])
+
+    if gyr_skip:
+        good_ft = np.hstack([good_acc, good_mag])
+        mild_ft = np.hstack([mild_acc, mild_mag])
+        bad_ft = np.hstack([bad_acc, bad_mag])
 
     # x: features, y: labels
     x = np.vstack([good_ft, mild_ft, bad_ft])
@@ -33,7 +44,7 @@ def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: 
     return x, y
 
 
-def run_pca(x: np.ndarray, y: np.ndarray) -> tuple(np.ndarray, np.ndarray):
+def run_pca(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     pca = PCA(n_components=3)
     pca.fit(x)
     x_pca_ = pca.transform(x)
@@ -42,7 +53,7 @@ def run_pca(x: np.ndarray, y: np.ndarray) -> tuple(np.ndarray, np.ndarray):
     return x_pca_, y_
 
 
-def run_mds(x: np.ndarray, y: np.ndarray) -> tuple(nd.ndarray, np.ndarray):
+def run_mds(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     # MDS
     md_scaling = manifold.MDS(
         n_components=3,
@@ -57,7 +68,7 @@ def run_mds(x: np.ndarray, y: np.ndarray) -> tuple(nd.ndarray, np.ndarray):
     return x_mds_, y_
 
 
-def run_tsne(x: np.ndarray, y: np.ndarray) -> tuple(nd.ndarray, np.ndarray):
+def run_tsne(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     t_sne = manifold.TSNE(
         n_components=3,
         perplexity=30,
@@ -71,6 +82,19 @@ def run_tsne(x: np.ndarray, y: np.ndarray) -> tuple(nd.ndarray, np.ndarray):
     return x_tsne_, y_
 
 
+def combine_cls_data(cls: str) -> np.ndarray:
+    # combine all good data
+    data_all = glob.glob(os.path.join(PREPROCESSED_DATA_FOLDER, f"final_interpolated_{cls}_*.csv"))
+    data_tmp = np.loadtxt(data_all[0], delimiter=',', skiprows=1, usecols=range(2, 29))
+
+    data_comb = np.empty((0, data_tmp.shape[1]))
+    for data in data_all:
+        data_arr = np.loadtxt(data, delimiter=',', skiprows=1, usecols=range(2, 29))
+        data_comb = np.vstack([data_comb, data_arr])
+
+    return data_comb
+
+
 def plot3d_embedding(X, y, elev=50, azim=50) -> None:
     fig = plt.figure(1, figsize=(8, 6))
     plt.clf()
@@ -80,7 +104,7 @@ def plot3d_embedding(X, y, elev=50, azim=50) -> None:
     plt.cla()
 
     for name, label in [("Good", 0), ("Mild", 1), ("Bad", 2)]:
-        txt_colors = {0: "green", 1: "yellow", 2: "green"}
+        txt_colors = {0: "purple", 1: "green", 2: "red"}
         ax.text3D(
             X[y == label, 0].mean(),
             X[y == label, 1].mean() + 10 * label,
@@ -91,7 +115,9 @@ def plot3d_embedding(X, y, elev=50, azim=50) -> None:
         )
 
     # Reorder the labels to have colors matching the cluster results
-    y_tmp = np.choose(y, [1, 2, 0]).astype(float)
+    # 0: purple (good), 1: green (mild), 2: red (bad)
+    colors = cm.rainbow(np.linspace(0, 1, 3))
+    y_tmp = colors[np.choose(y, [0, 1, 2]).astype(int)]
     ax.scatter(X[:, 0], X[:, 1], X[:, 2], c=y_tmp, edgecolor="w")
 
     ax.xaxis.set_ticklabels([])
@@ -105,21 +131,34 @@ if __name__ == "__main__":
     # read the data (skip the first row and first two columns (1st: index, 2nd: timestamp))
     # skiprows deletes header(0,1,2...)
     # usecols range deletes time stamp column
-    good_s0_t0 = np.loadtxt('./data/preprocessed/final_interpolated_good_s_002_t_001.csv', delimiter=',',
-                            skiprows=1,
-                            usecols=range(2, 29))
-    mild_s0_t0 = np.loadtxt('./data/preprocessed/final_interpolated_mild_s_001_t_000.csv', delimiter=',', skiprows=1,
-                            usecols=range(2, 29))
-    bad_s0_t0 = np.loadtxt('./data/preprocessed/final_interpolated_bad_s_002_t_000.csv', delimiter=',', skiprows=1,
-                           usecols=range(2, 29))
 
-    x, y = make_features(good_s0_t0, mild_s0_t0, bad_s0_t0)
+    # combine each class data
+    good_combined = combine_cls_data('good')
+    mild_combined = combine_cls_data('mild')
+    bad_combined = combine_cls_data('bad')
 
-    x_pca, y = run_pca(x, y)
-    plot3d_embedding(x_pca, y)
+    # good_comb_train, good_comb_val, good_comb_test = combine_cls_data('good')
 
-    x_mds, y = run_mds(x, y)
-    plot3d_embedding(x_mds, y)
+    X, y = make_features(good_combined, mild_combined, bad_combined)
 
-    x_tsne, y = run_mds(x, y)
-    plot3d_embedding(x_tsne, y)
+    X_pca, y = run_pca(X, y)
+    # X_mds, y = run_mds(X, y)
+    X_tsne, y = run_tsne(X, y)
+    # plot3d_embedding(X_pca, y)
+
+    from xgboost import XGBClassifier
+    from sklearn.model_selection import cross_val_score
+
+    print("XGBoost using the raw data")
+    print(cross_val_score(XGBClassifier(), X, y))
+    print("XGBoost using the PCA data")
+    print(cross_val_score(XGBClassifier(), X_pca, y))
+    # print(cross_val_score(XGBClassifier(), X_mds, y))
+    print("XGBoost using the t-SNE data")
+    print(cross_val_score(XGBClassifier(), X_tsne, y))
+
+    # x_mds, y = run_mds(x, y)
+    # plot3d_embedding(x_mds, y)
+    #
+    # x_tsne, y = run_mds(x, y)
+    # plot3d_embedding(x_tsne, y)
