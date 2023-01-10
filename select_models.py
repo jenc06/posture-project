@@ -26,7 +26,6 @@ class PostureSensorDataset(Dataset):
                 on a sample.
         """
         self.sensor_data_frame = pd.read_csv(csv_file)
-        # print(self.sensor_data_frame)
         self.root_dir = root_dir
         self.transform = transform
 
@@ -78,7 +77,7 @@ if __name__ == "__main__":
     dataloader = DataLoader(posture_sensor_dataset, batch_size=4, shuffle=True, num_workers=0)
 
     for i_batch, sample_batched in enumerate(dataloader):
-        print(i_batch, sample_batched['sensor_data'].size(), sample_batched['labels'].size())
+        pass
 
     # Make a MLP model
     model = MyMLP().to(device)
