@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import glob
 import os
 from sklearn import manifold
@@ -153,9 +154,15 @@ if __name__ == "__main__":
     print(good_combined_test.shape, mild_combined_test.shape, bad_combined_test.shape)
 
     X_train, y_train = make_features(good_combined_train, mild_combined_train, bad_combined_train)
-    print(X_train.shape)
+    print(X_train.shape, y_train.shape)
     X_test, y_test = make_features(good_combined_test, mild_combined_test, bad_combined_test)
-    print(X_test.shape)
+    print(X_test.shape, y_test.shape)
+
+    df_train = pd.DataFrame(np.hstack([X_train, np.expand_dims(y_train, axis=1)]), columns=None)
+    df_test = pd.DataFrame(np.hstack([X_test, np.expand_dims(y_test, axis=1)]), columns=None)
+
+    df_train.to_csv(os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv"), header=None, index=False)
+    df_test.to_csv(os.path.join(PREPROCESSED_DATA_FOLDER, "test_data.csv"), header=None, index=False)
 
     # print("Running PCA")
     # X_pca, y = run_pca(X_train, y_train)
