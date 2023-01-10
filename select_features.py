@@ -5,9 +5,6 @@ import os
 from sklearn import manifold
 from sklearn.decomposition import PCA
 import matplotlib.cm as cm
-from xgboost import XGBClassifier
-from sklearn.model_selection import cross_val_score
-
 
 PREPROCESSED_DATA_FOLDER = "./data/preprocessed/"
 
@@ -24,7 +21,7 @@ def select_mag(sensor_data):
     return np.hstack([sensor_data[:, 6:9], sensor_data[:, 15:18], sensor_data[:, 24:27]])
 
 
-def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: np.ndarray, gyr_skip: bool=True):
+def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: np.ndarray, gyr_skip: bool = True):
     good_acc, mild_acc, bad_acc = select_acc(good_interp), select_acc(mild_interp), select_acc(bad_interp)
     good_mag, mild_mag, bad_mag = select_mag(good_interp), select_mag(mild_interp), select_mag(bad_interp)
     good_gyr, mild_gyr, bad_gyr = select_gyr(good_interp), select_gyr(mild_interp), select_gyr(bad_interp)
@@ -37,6 +34,8 @@ def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: 
         good_ft = np.hstack([good_acc, good_mag])
         mild_ft = np.hstack([mild_acc, mild_mag])
         bad_ft = np.hstack([bad_acc, bad_mag])
+
+        assert good_ft.shape[1] == 18, "Should gyro data be included?"
 
     # x: features, y: labels
     x = np.vstack([good_ft, mild_ft, bad_ft])
@@ -84,9 +83,13 @@ def run_tsne(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return x_tsne_, y_
 
 
-def combine_cls_data(cls: str) -> np.ndarray:
+def combine_cls_data(cls: str, sub_ids) -> np.ndarray:
+    data_all = []
+    for sub_id in sub_ids:
+        data_all += glob.glob(os.path.join(PREPROCESSED_DATA_FOLDER, f"final_interpolated_{cls}_s_{sub_id:03}*.csv"))
+
+    print(data_all)
     # combine all good data
-    data_all = glob.glob(os.path.join(PREPROCESSED_DATA_FOLDER, f"final_interpolated_{cls}_*.csv"))
     data_tmp = np.loadtxt(data_all[0], delimiter=',', skiprows=1, usecols=range(2, 29))
 
     data_comb = np.empty((0, data_tmp.shape[1]))
@@ -135,30 +138,33 @@ if __name__ == "__main__":
     # usecols range deletes time stamp column
 
     # combine each class data
-    good_combined = combine_cls_data('good')
-    mild_combined = combine_cls_data('mild')
-    bad_combined = combine_cls_data('bad')
+    train_sub_ids = [0, 1, 2]
+    test_sub_ids = [3]
 
-    # good_comb_train, good_comb_val, good_comb_test = combine_cls_data('good')
+    good_combined_train = combine_cls_data('good', train_sub_ids)
+    mild_combined_train = combine_cls_data('mild', train_sub_ids)
+    bad_combined_train = combine_cls_data('bad', train_sub_ids)
 
-    X, y = make_features(good_combined, mild_combined, bad_combined)
+    good_combined_test = combine_cls_data('good', test_sub_ids)
+    mild_combined_test = combine_cls_data('mild', test_sub_ids)
+    bad_combined_test = combine_cls_data('bad', test_sub_ids)
 
-    print("Running PCA")
-    X_pca, y = run_pca(X, y)
+    print(good_combined_train.shape, mild_combined_train.shape, bad_combined_train.shape)
+    print(good_combined_test.shape, mild_combined_test.shape, bad_combined_test.shape)
+
+    X_train, y_train = make_features(good_combined_train, mild_combined_train, bad_combined_train)
+    print(X_train.shape)
+    X_test, y_test = make_features(good_combined_test, mild_combined_test, bad_combined_test)
+    print(X_test.shape)
+
+    # print("Running PCA")
+    # X_pca, y = run_pca(X_train, y_train)
     # print("Running MDS")
     # X_mds, y = run_mds(X, y)
-    print("Running t-SNE")
+    # print("Running t-SNE")
     # X_tsne, y = run_tsne(X, y)
 
     # plot3d_embedding(X_pca, y)
-
-    print("XGBoost using the raw data")
-    print(cross_val_score(XGBClassifier(), X, y))
-    print("XGBoost using the PCA data")
-    print(cross_val_score(XGBClassifier(), X_pca, y))
-    # print(cross_val_score(XGBClassifier(), X_mds, y))
-    print("XGBoost using the t-SNE data")
-    print(cross_val_score(XGBClassifier(), X_tsne, y))
 
     # x_mds, y = run_mds(x, y)
     # plot3d_embedding(x_mds, y)
