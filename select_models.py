@@ -54,15 +54,15 @@ class PostureSensorDataset(Dataset):
 
 
 class MyMLP(nn.Module):
-    def __init__(self, in_dim=18):
+    def __init__(self, in_dim=18, out_dim=3):
         super().__init__()
         self.flatten = nn.Flatten()
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(18, 64),
+            nn.Linear(in_dim, 64),
             nn.ReLU(),
             nn.Linear(64, 64),
             nn.ReLU(),
-            nn.Linear(64, 3),
+            nn.Linear(64, out_dim),
             nn.ReLU(),
         )
 
@@ -86,7 +86,6 @@ def train_loop(dataloader, model, loss_fn, optimizer):
             Xd = X.to(device)
             y_pd = y_p.to(device)
             pred = model(Xd)
-            # print(pred)
             loss = loss_fn(pred, y_pd)
         except:
             print(y)
@@ -140,7 +139,7 @@ if __name__ == "__main__":
     model = MyMLP().to(device)
 
     learning_rate = 1e-3
-    epochs = 25
+    epochs = 50
 
     loss_fn = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
