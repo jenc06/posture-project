@@ -9,6 +9,7 @@ from sklearn.model_selection import ShuffleSplit
 import torch
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
 from select_features import PREPROCESSED_DATA_FOLDER
 
 
@@ -36,14 +37,15 @@ class PostureSensorDataset(Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        print(idx)
-
         sensor_data = self.sensor_data_frame.iloc[idx, 1:]
-        labels = self.sensor_data_frame.iloc[idx, -1]
         sensor_data = np.array([sensor_data])
-        sensor_data = sensor_data.astype('float')
+        sensor_data = sensor_data.astype('float32')
+
+        labels = self.sensor_data_frame.iloc[idx, -1]
+        labels = np.array([labels])
+        labels = labels.astype('int')
+
         sample = {'sensor_data': sensor_data, "labels": labels}
-        print(sample)
 
         if self.transform:
             sample = self.transform(sample)
@@ -60,7 +62,7 @@ class MyMLP(nn.Module):
             nn.ReLU(),
             nn.Linear(64, 64),
             nn.ReLU(),
-            nn.Linear(64, 2),
+            nn.Linear(64, 3),
             nn.ReLU(),
         )
 
@@ -70,18 +72,85 @@ class MyMLP(nn.Module):
         return logits
 
 
+def train_loop(dataloader, model, loss_fn, optimizer):
+    size = len(dataloader.dataset)
+    for batch, data_sample in enumerate(dataloader):
+        # Compute prediction and loss
+        X = data_sample['sensor_data']
+        y = torch.squeeze(data_sample['labels'])
+
+        y_p = torch.zeros_like(torch.empty(y.size(dim=0), 3))
+        y_p[torch.arange(y.size(dim=0)), y] = 1
+
+        try:
+            Xd = X.to(device)
+            y_pd = y_p.to(device)
+            pred = model(Xd)
+            # print(pred)
+            loss = loss_fn(pred, y_pd)
+        except:
+            print(y)
+            print(y_pd)
+            print(pred)
+
+        # Backpropagation
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        if batch % 100 == 0:
+            loss, current = loss.item(), batch * len(X)
+            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+
+
+def test_loop(dataloader, model, loss_fn):
+    size = len(dataloader.dataset)
+    num_batches = len(dataloader)
+    test_loss, correct = 0, 0
+
+    with torch.no_grad():
+        for data_sample in dataloader:
+            X = data_sample['sensor_data']
+            y = torch.squeeze(data_sample['labels'])
+
+            y_p = torch.zeros_like(torch.empty(y.size(dim=0), 3))
+            y_p[torch.arange(y.size(dim=0)), y] = 1
+
+            Xd = X.to(device)
+            y_pd = y_p.to(device)
+            pred = model(Xd)
+            test_loss += loss_fn(pred, y_pd).item()
+            correct += (pred.argmax(1) == y.to(device)).type(torch.float).sum().item()
+
+    test_loss /= num_batches
+    correct /= size
+    print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+
+
 if __name__ == "__main__":
     # Need to load the train and test data separately
-    posture_sensor_dataset = PostureSensorDataset(os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv"))
+    # sensor_transform = transforms.Compose([transforms.ToTensor()])
+    posture_sensor_dataset_train = PostureSensorDataset(os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv"))
+    train_dataloader = DataLoader(posture_sensor_dataset_train, batch_size=16, shuffle=True, num_workers=0)
 
-    dataloader = DataLoader(posture_sensor_dataset, batch_size=4, shuffle=True, num_workers=0)
-
-    for i_batch, sample_batched in enumerate(dataloader):
-        pass
+    posture_sensor_dataset_test = PostureSensorDataset(os.path.join(PREPROCESSED_DATA_FOLDER, "test_data.csv"))
+    test_dataloader = DataLoader(posture_sensor_dataset_test, batch_size=4, shuffle=False, num_workers=0)
 
     # Make a MLP model
     model = MyMLP().to(device)
-    print(model)
+
+    learning_rate = 1e-3
+    epochs = 25
+
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
+
+    for t in range(epochs):
+        print(f"Epoch {t + 1}\n-------------------------------")
+        train_loop(train_dataloader, model, loss_fn, optimizer)
+        test_loop(test_dataloader, model, loss_fn)
+    print("Done!")
+
 
     # cv = ShuffleSplit(n_splits=5, test_size=0.2, random_state=0)
     #
