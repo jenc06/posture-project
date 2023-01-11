@@ -89,10 +89,8 @@ def train_loop(dataloader, model, loss_fn, optimizer):
             y_pd = y_p.to(device)
             pred = model(Xd)
             loss = loss_fn(pred, y_pd)
-        except:
-            print(y)
-            print(y_pd)
-            print(pred)
+        except ValueError:
+            print(y, y_pd, pred)
 
         # Backpropagation
         optimizer.zero_grad()
@@ -128,7 +126,9 @@ def test_loop(dataloader, model, loss_fn):
     print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
 
 
-if __name__ == "__main__":
+def run_mlp(epochs: int=15):
+    if epochs == 0:
+        return
     # Need to load the train and test data separately
     # sensor_transform = transforms.Compose([transforms.ToTensor()])
     posture_sensor_dataset_train = PostureSensorDataset(os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv"))
@@ -138,39 +138,74 @@ if __name__ == "__main__":
     test_dataloader = DataLoader(posture_sensor_dataset_test, batch_size=4, shuffle=False, num_workers=0)
 
     # Make a MLP model
-    model = MyMLP().to(device)
+    my_model = MyMLP().to(device)
 
     learning_rate = 1e-3
-    epochs = 50
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
+    my_loss_fn = nn.CrossEntropyLoss()
+    my_optimizer = torch.optim.SGD(my_model.parameters(), lr=learning_rate)
 
     for t in range(epochs):
         print(f"Epoch {t + 1}\n-------------------------------")
-        train_loop(train_dataloader, model, loss_fn, optimizer)
-        test_loop(test_dataloader, model, loss_fn)
+        train_loop(train_dataloader, my_model, my_loss_fn, my_optimizer)
+        test_loop(test_dataloader, my_model, my_loss_fn)
     print("Done!")
 
 
-    # cv = ShuffleSplit(n_splits=5, test_size=0.2, random_state=0)
-    #
-    # print("XGBoost using the raw data")
-    # print(cross_val_score(XGBClassifier(), X, y, cv=cv))
-    # print("XGBoost using the PCA data")
-    # print(cross_val_score(XGBClassifier(), X_pca, y, cv=cv))
-    #
-    # # print("SVM using the raw data")
-    # # print(cross_val_score(svm.SVC(kernel='rbf', C=1, random_state=42), X, y, cv=cv))
-    # # print("SVM using the PCA data")
-    # # print(cross_val_score(svm.SVC(kernel='rbf', C=1, random_state=42), X_pca, y, cv=cv))
-    #
-    # print("RandomForeest using the raw data")
-    # print(cross_val_score(RandomForestClassifier(max_depth=7, random_state=10), X, y, cv=cv))
-    # print("RandomForeest using the PCA data")
-    # print(cross_val_score(RandomForestClassifier(max_depth=7, random_state=10), X_pca, y, cv=cv))
-    #
-    # # print(cross_val_score(XGBClassifier(), X_mds, y))
-    # # print("XGBoost using the t-SNE data")
-    # # print(cross_val_score(XGBClassifier(), X_tsne, y))
-    #
+def load_train_test_data():
+    train_data_csv = os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv")
+    train_df = pd.read_csv(train_data_csv)
+    X_train = train_df.iloc[:, 1:].values
+    y_train = train_df.iloc[:, -1].values
+
+    test_data_csv = os.path.join(PREPROCESSED_DATA_FOLDER, "test_data.csv")
+    test_df = pd.read_csv(test_data_csv)
+    X_test = test_df.iloc[:, 1:].values
+    y_test = test_df.iloc[:, -1].values
+
+    return X_train, y_train, X_test, y_test
+
+
+def run_xgboost_classifier(X_train, y_train, X_test, y_test):
+    # cross validation
+    cv = ShuffleSplit(n_splits=5, test_size=0.2, random_state=0)
+
+    # train a model and check using cross validation
+    print("XGBoost using the raw data")
+    xgb_model = XGBClassifier(objective="multi:softmax")
+    xgb_model.fit(X_train, y_train)
+    print("Cross validation scores:")
+    print(cross_val_score(XGBClassifier(), X_train, y_train, cv=cv))
+
+    # run prediction
+    y_pred = xgb_model.predict(X_test)
+    correct = 0
+    correct += (y_pred == y_test).sum().item()
+    correct /= y_test.shape[0]
+    print(f"(XGBoost) Test Error: \n Accuracy: {(100 * correct):>0.1f}% \n")
+
+
+def run_randomforest_classifer(X_train, y_train, X_test, y_test):
+    # cross validation
+    cv = ShuffleSplit(n_splits=5, test_size=0.2, random_state=0)
+
+    # train a random forest model
+    print("Random Forest using the raw data")
+    rfc_model = RandomForestClassifier(max_depth=7, random_state=10)
+    rfc_model.fit(X_train, y_train)
+    print("Cross validation scores:")
+    print(cross_val_score(RandomForestClassifier(max_depth=7, random_state=10), X_train, y_train, cv=cv))
+
+    # run prediction
+    y_pred = rfc_model.predict(X_test)
+    correct = 0
+    correct += (y_pred == y_test).sum().item()
+    correct /= y_test.shape[0]
+    print(f"(RandomForest) Test Error: \n Accuracy: {(100 * correct):>0.1f}% \n")
+
+
+if __name__ == "__main__":
+    X_tr, y_tr, X_te, y_te = load_train_test_data()
+    run_mlp(epochs=10)
+    run_xgboost_classifier(X_tr, y_tr, X_te, y_te)
+    run_randomforest_classifer(X_tr, y_tr, X_te, y_te)
