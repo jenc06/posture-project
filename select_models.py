@@ -11,6 +11,7 @@ from torch import nn
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from select_features import PREPROCESSED_DATA_FOLDER
+import matplotlib.pyplot as plt
 
 
 device = "mps" if torch.backends.mps.is_available() else "cpu"
@@ -126,7 +127,7 @@ def test_loop(dataloader, model, loss_fn):
     print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
 
 
-def run_mlp(epochs: int=15):
+def run_mlp(epochs: int = 15):
     if epochs == 0:
         return
     # Need to load the train and test data separately
@@ -152,16 +153,21 @@ def run_mlp(epochs: int=15):
     print("Done!")
 
 
-def load_train_test_data():
+def load_train_test_data(corrupt_test_data: bool = False):
     train_data_csv = os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv")
     train_df = pd.read_csv(train_data_csv)
+    train_df = train_df.sample(frac=1)
     X_train = train_df.iloc[:, 1:].values
     y_train = train_df.iloc[:, -1].values
 
     test_data_csv = os.path.join(PREPROCESSED_DATA_FOLDER, "test_data.csv")
     test_df = pd.read_csv(test_data_csv)
+    test_df = test_df.sample(frac=1)
     X_test = test_df.iloc[:, 1:].values
     y_test = test_df.iloc[:, -1].values
+
+    if corrupt_test_data:
+        X_test[-10000:, :] = np.random.rand(10000, X_test.shape[1])
 
     return X_train, y_train, X_test, y_test
 
@@ -179,8 +185,9 @@ def run_xgboost_classifier(X_train, y_train, X_test, y_test):
 
     # run prediction
     y_pred = xgb_model.predict(X_test)
+
     correct = 0
-    correct += (y_pred == y_test).sum().item()
+    correct += (y_pred == y_test).sum()
     correct /= y_test.shape[0]
     print(f"(XGBoost) Test Error: \n Accuracy: {(100 * correct):>0.1f}% \n")
 
@@ -198,6 +205,7 @@ def run_randomforest_classifer(X_train, y_train, X_test, y_test):
 
     # run prediction
     y_pred = rfc_model.predict(X_test)
+
     correct = 0
     correct += (y_pred == y_test).sum().item()
     correct /= y_test.shape[0]
@@ -206,6 +214,6 @@ def run_randomforest_classifer(X_train, y_train, X_test, y_test):
 
 if __name__ == "__main__":
     X_tr, y_tr, X_te, y_te = load_train_test_data()
-    run_mlp(epochs=10)
+    # run_mlp(epochs=10)
     run_xgboost_classifier(X_tr, y_tr, X_te, y_te)
     run_randomforest_classifer(X_tr, y_tr, X_te, y_te)
