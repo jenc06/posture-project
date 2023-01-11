@@ -58,11 +58,13 @@ class MyMLP(nn.Module):
         super().__init__()
         self.flatten = nn.Flatten()
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(in_dim, 64),
+            nn.Linear(in_dim, 32),
             nn.ReLU(),
-            nn.Linear(64, 64),
+            nn.LayerNorm(32),
+            nn.Linear(32, 32),
             nn.ReLU(),
-            nn.Linear(64, out_dim),
+            nn.LayerNorm(32),
+            nn.Linear(32, out_dim),
             nn.ReLU(),
         )
 
