@@ -89,7 +89,7 @@ def combine_cls_data(cls: str, sub_ids) -> np.ndarray:
     for sub_id in sub_ids:
         data_all += glob.glob(os.path.join(PREPROCESSED_DATA_FOLDER, f"final_interpolated_{cls}_s_{sub_id:03}*.csv"))
 
-    print(data_all)
+    # print(data_all)
     # combine all good data
     data_tmp = np.loadtxt(data_all[0], delimiter=',', skiprows=1, usecols=range(2, 29))
 
@@ -133,14 +133,25 @@ def plot3d_embedding(X, y, elev=50, azim=50) -> None:
     plt.show()
 
 
+def duplicate_exist(train_csv, test_csv):
+    tr_arr = pd.read_csv(train_csv).values
+    te_arr = pd.read_csv(test_csv).values
+
+    comb_data = np.vstack([tr_arr, te_arr])
+
+    unq, count = np.unique(comb_data, axis=0, return_counts=True)
+
+    return True if len(unq[count>1]) > 0 else False
+
+
 if __name__ == "__main__":
     # read the data (skip the first row and first two columns (1st: index, 2nd: timestamp))
     # skiprows deletes header(0,1,2...)
     # usecols range deletes time stamp column
 
     # combine each class data
-    train_sub_ids = [0, 1, 2]
-    test_sub_ids = [3]
+    train_sub_ids = [0]
+    test_sub_ids = [1, 2, 3]
 
     good_combined_train = combine_cls_data('good', train_sub_ids)
     mild_combined_train = combine_cls_data('mild', train_sub_ids)
@@ -150,19 +161,24 @@ if __name__ == "__main__":
     mild_combined_test = combine_cls_data('mild', test_sub_ids)
     bad_combined_test = combine_cls_data('bad', test_sub_ids)
 
-    print(good_combined_train.shape, mild_combined_train.shape, bad_combined_train.shape)
-    print(good_combined_test.shape, mild_combined_test.shape, bad_combined_test.shape)
+    # print(good_combined_train.shape, mild_combined_train.shape, bad_combined_train.shape)
+    # print(good_combined_test.shape, mild_combined_test.shape, bad_combined_test.shape)
 
     X_train, y_train = make_features(good_combined_train, mild_combined_train, bad_combined_train)
-    print(X_train.shape, y_train.shape)
+    # print(X_train.shape, y_train.shape)
     X_test, y_test = make_features(good_combined_test, mild_combined_test, bad_combined_test)
-    print(X_test.shape, y_test.shape)
+    # print(X_test.shape, y_test.shape)
 
     df_train = pd.DataFrame(np.hstack([X_train, np.expand_dims(y_train, axis=1)]), columns=None)
     df_test = pd.DataFrame(np.hstack([X_test, np.expand_dims(y_test, axis=1)]), columns=None)
 
-    df_train.to_csv(os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv"), header=None, index=False)
-    df_test.to_csv(os.path.join(PREPROCESSED_DATA_FOLDER, "test_data.csv"), header=None, index=False)
+    train_csv = os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv")
+    test_csv = os.path.join(PREPROCESSED_DATA_FOLDER, "test_data.csv")
+    df_train.to_csv(train_csv, header=None, index=False)
+    df_test.to_csv(test_csv, header=None, index=False)
+
+    if duplicate_exist(train_csv, test_csv):
+        raise Exception("Train and test data have duplicates")
 
     # print("Running PCA")
     # X_pca, y = run_pca(X_train, y_train)
