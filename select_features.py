@@ -7,11 +7,13 @@ from sklearn import manifold
 from sklearn.decomposition import PCA
 import matplotlib.cm as cm
 
+# contains all the interpolated files
 PREPROCESSED_DATA_FOLDER = "./data/preprocessed/"
 
 
 def select_acc(sensor_data):
     return np.hstack([sensor_data[:, :3], sensor_data[:, 9:12], sensor_data[:, 18:21]])
+    # all x values, but take only first three
 
 
 def select_gyr(sensor_data):
@@ -22,11 +24,14 @@ def select_mag(sensor_data):
     return np.hstack([sensor_data[:, 6:9], sensor_data[:, 15:18], sensor_data[:, 24:27]])
 
 
+# features are x, labels are y
 def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: np.ndarray, gyr_skip: bool = True):
+    # use select functions to extract acc, mag, and gyro
     good_acc, mild_acc, bad_acc = select_acc(good_interp), select_acc(mild_interp), select_acc(bad_interp)
     good_mag, mild_mag, bad_mag = select_mag(good_interp), select_mag(mild_interp), select_mag(bad_interp)
     good_gyr, mild_gyr, bad_gyr = select_gyr(good_interp), select_gyr(mild_interp), select_gyr(bad_interp)
 
+    # horizontally stack acc,mag, and gyros so they are next to each other
     good_ft = np.hstack([good_acc, good_mag, good_gyr])
     mild_ft = np.hstack([mild_acc, mild_mag, mild_gyr])
     bad_ft = np.hstack([bad_acc, bad_mag, bad_gyr])
@@ -46,28 +51,28 @@ def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: 
     return x, y
 
 
-def run_pca(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    pca = PCA(n_components=3)
-    pca.fit(x)
-    x_pca_ = pca.transform(x)
-    y_ = y.astype(np.int64)
+# def run_pca(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+#     pca = PCA(n_components=3)
+#     pca.fit(x)
+#     x_pca_ = pca.transform(x)
+#     y_ = y.astype(np.int64)
+#
+#     return x_pca_, y_
 
-    return x_pca_, y_
 
-
-def run_mds(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    # MDS
-    md_scaling = manifold.MDS(
-        n_components=3,
-        max_iter=50,
-        n_init=4,
-        random_state=0,
-        normalized_stress=False,
-    )
-    x_mds_ = md_scaling.fit_transform(x)
-    y_ = y.astype(np.int64)
-
-    return x_mds_, y_
+# def run_mds(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+#     # MDS
+#     md_scaling = manifold.MDS(
+#         n_components=3,
+#         max_iter=50,
+#         n_init=4,
+#         random_state=0,
+#         normalized_stress=False,
+#     )
+#     x_mds_ = md_scaling.fit_transform(x)
+#     y_ = y.astype(np.int64)
+#
+#     return x_mds_, y_
 
 
 def run_tsne(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -87,50 +92,57 @@ def run_tsne(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 def combine_cls_data(cls: str, sub_ids) -> np.ndarray:
     data_all = []
     for sub_id in sub_ids:
+        #put final_interpolated files in data_all list
         data_all += glob.glob(os.path.join(PREPROCESSED_DATA_FOLDER, f"final_interpolated_{cls}_s_{sub_id:03}*.csv"))
 
     print(data_all)
     # combine all good data
-    data_tmp = np.loadtxt(data_all[0], delimiter=',', skiprows=1, usecols=range(2, 29))
 
+    # make empty row with right size
+    # have to stack data. if there is nothing on top, cannot stack. length has to be same to vertical length
+    # loadtxt loads a text file into array
+    data_tmp = np.loadtxt(data_all[0], delimiter=',', skiprows=1, usecols=range(2, 29))
+    # make empty numpy array where u are workign with first row and number of total columns from first file
     data_comb = np.empty((0, data_tmp.shape[1]))
     for data in data_all:
+        # load into variable
         data_arr = np.loadtxt(data, delimiter=',', skiprows=1, usecols=range(2, 29))
+        # vertically stack each file from data_all into data_comb
         data_comb = np.vstack([data_comb, data_arr])
 
     return data_comb
 
 
-def plot3d_embedding(X, y, elev=50, azim=50) -> None:
-    fig = plt.figure(1, figsize=(8, 6))
-    plt.clf()
-
-    ax = fig.add_subplot(111, projection="3d", elev=elev, azim=azim)
-    ax.set_position([0, 0, 0.95, 1])
-    plt.cla()
-
-    for name, label in [("Good", 0), ("Mild", 1), ("Bad", 2)]:
-        txt_colors = {0: "purple", 1: "green", 2: "red"}
-        ax.text3D(
-            X[y == label, 0].mean(),
-            X[y == label, 1].mean() + 10 * label,
-            X[y == label, 2].mean(),
-            name,
-            horizontalalignment="center",
-            bbox=dict(alpha=0.9, edgecolor=txt_colors[label], facecolor=txt_colors[label]),
-        )
+# def plot3d_embedding(X, y, elev=50, azim=50) -> None:
+#     fig = plt.figure(1, figsize=(8, 6))
+#     plt.clf()
+#
+#     ax = fig.add_subplot(111, projection="3d", elev=elev, azim=azim)
+#     ax.set_position([0, 0, 0.95, 1])
+#     plt.cla()
+#
+#     for name, label in [("Good", 0), ("Mild", 1), ("Bad", 2)]:
+#         txt_colors = {0: "purple", 1: "green", 2: "red"}
+#         ax.text3D(
+#             X[y == label, 0].mean(),
+#             X[y == label, 1].mean() + 10 * label,
+#             X[y == label, 2].mean(),
+#             name,
+#             horizontalalignment="center",
+#             bbox=dict(alpha=0.9, edgecolor=txt_colors[label], facecolor=txt_colors[label]),
+#         )
 
     # Reorder the labels to have colors matching the cluster results
     # 0: purple (good), 1: green (mild), 2: red (bad)
-    colors = cm.rainbow(np.linspace(0, 1, 3))
-    y_tmp = colors[np.choose(y, [0, 1, 2]).astype(int)]
-    ax.scatter(X[:, 0], X[:, 1], X[:, 2], c=y_tmp, edgecolor="w")
-
-    ax.xaxis.set_ticklabels([])
-    ax.yaxis.set_ticklabels([])
-    ax.zaxis.set_ticklabels([])
-
-    plt.show()
+    # colors = cm.rainbow(np.linspace(0, 1, 3))
+    # y_tmp = colors[np.choose(y, [0, 1, 2]).astype(int)]
+    # ax.scatter(X[:, 0], X[:, 1], X[:, 2], c=y_tmp, edgecolor="w")
+    #
+    # ax.xaxis.set_ticklabels([])
+    # ax.yaxis.set_ticklabels([])
+    # ax.zaxis.set_ticklabels([])
+    #
+    # plt.show()
 
 
 if __name__ == "__main__":
@@ -142,6 +154,7 @@ if __name__ == "__main__":
     train_sub_ids = [0, 1, 2]
     test_sub_ids = [3]
 
+    # separate the data into training and testing sections
     good_combined_train = combine_cls_data('good', train_sub_ids)
     mild_combined_train = combine_cls_data('mild', train_sub_ids)
     bad_combined_train = combine_cls_data('bad', train_sub_ids)
