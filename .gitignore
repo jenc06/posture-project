@@ -1,5 +1,7 @@
 data/
 results/
+models/
+runs/
 .DS_Store
 .idea/
 .*~
