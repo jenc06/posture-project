@@ -42,7 +42,8 @@ class PostureSensorDataset(Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        sensor_data = self.sensor_data_frame.iloc[idx, :-1]
+        # sensor_data = self.sensor_data_frame.iloc[idx, :-1]
+        sensor_data = self.sensor_data_frame.iloc[idx, :9]
         sensor_data = np.array([sensor_data])
         sensor_data = sensor_data.astype('float32')
 
@@ -80,14 +81,15 @@ class PostureSensorDataset2D(Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        sensor_data = self.sensor_data_frame.iloc[idx*self.num_ts:(idx+1)*self.num_ts, :-1]
+        # sensor_data = self.sensor_data_frame.iloc[idx*self.num_ts:(idx+1)*self.num_ts, :-1]
+        sensor_data = self.sensor_data_frame.iloc[idx * self.num_ts:(idx + 1) * self.num_ts, :9]
         if self.multichannel:
             sensor_data = np.expand_dims(sensor_data, 2)
             sensor_data = np.tile(sensor_data, (1, 1, 3))
             sensor_data = np.transpose(sensor_data, [2, 0, 1])
-        sensor_data = sensor_data.astype('float32')
+        sensor_data = sensor_data.astype('float32').to_numpy()
 
-        labels = self.sensor_data_frame.iloc[idx*10:idx*10+10, -1]
+        labels = self.sensor_data_frame.iloc[idx * self.num_ts:(idx + 1) * self.num_ts, -1]
         if all(labels == 0):
             # print("label 0")
             labels = 0
@@ -111,7 +113,7 @@ class PostureSensorDataset2D(Dataset):
 
 
 class MyMLP(nn.Module):
-    def __init__(self, in_dim=18, out_dim=3):
+    def __init__(self, in_dim=9, out_dim=3):
         super().__init__()
         self.flatten = nn.Flatten()
         self.linear_relu_stack = nn.Sequential(
@@ -199,7 +201,7 @@ class ResNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.layer1 = self.make_layer(block, 16, layers[0])
         self.avg_pool = nn.AvgPool2d(5)
-        self.fc = nn.Linear(96, num_classes)
+        self.fc = nn.Linear(32, num_classes)
 
     def make_layer(self, block, out_channels, blocks, stride=1):
         downsample = None
@@ -230,19 +232,22 @@ class MyCNN2D(nn.Module):
     def __init__(self, in_dim=1, out_dim=4):
         super().__init__()
         self.conv1 = nn.Conv2d(in_dim, 6, 3)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 32, 3)
-        self.fc1 = nn.Linear(32 * 3, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, out_dim)
+        self.pool1 = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 32, 1)
+        self.pool2 = nn.MaxPool2d(2, 2)
+        self.fc1 = nn.Linear(64, 64)
+        self.fc2 = nn.Linear(64, 32)
+        self.fc3 = nn.Linear(32, out_dim)
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
+        x = torch.transpose(x[None, :, :, :], 0, 1)
+        x = self.pool1(F.relu(self.conv1(x)))
+        x = self.pool2(F.relu(self.conv2(x)))
         x = torch.flatten(x, 1)  # flatten all dimensions except batch
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
+        print(x)
         return x
 
 
@@ -387,7 +392,7 @@ def run_mlp(epochs: int = 15):
     scheduler = CosineAnnealingWarmRestarts(my_optimizer, 10)
 
     os.makedirs('./runs', exist_ok=True)
-    writer = SummaryWriter('runs/mlp_experiments')
+    writer = SummaryWriter('runs/mlp_experiments_acc_only/')
 
     best_loss = 1e9
     os.makedirs('./models', exist_ok=True)
@@ -397,24 +402,24 @@ def run_mlp(epochs: int = 15):
         test_loss = test_loop(test_dataloader, t, my_model, my_loss_fn, writer=writer)
 
         if test_loss < best_loss:
-            torch.save(my_model, './models/best-model-mlp.pt')
+            torch.save(my_model, './models/best-model-mlp-acc-only.pt')
 
     writer.close()
 
     print("Done!")
 
 
-def run_cnn2d(epochs: int = 15, arch='my_resnet'):
+def run_cnn2d(epochs: int = 15, arch='my_resnet', multichannel=False):
     if epochs == 0:
         return
     # Need to load the train and test data separately
     # sensor_transform = transforms.Compose([transforms.ToTensor()])
     posture_sensor_dataset_train = PostureSensorDataset2D(os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv"),
-                                                          multichannel=True)
+                                                          multichannel=multichannel)
     train_dataloader = DataLoader(posture_sensor_dataset_train, batch_size=16, shuffle=True, num_workers=0)
 
     posture_sensor_dataset_test = PostureSensorDataset2D(os.path.join(PREPROCESSED_DATA_FOLDER, "test_data.csv"),
-                                                         multichannel=True)
+                                                         multichannel=multichannel)
     test_dataloader = DataLoader(posture_sensor_dataset_test, batch_size=4, shuffle=False, num_workers=0)
 
     # Make a 2D CNN
@@ -431,7 +436,7 @@ def run_cnn2d(epochs: int = 15, arch='my_resnet'):
     else:
         raise Exception(f"Arch {arch} not supported.")
 
-    learning_rate = 1e-4
+    learning_rate = 1e-8
     best_loss = 1e9
 
     n_smp_cls = [14300, 11300, 9600, 50]
@@ -441,7 +446,7 @@ def run_cnn2d(epochs: int = 15, arch='my_resnet'):
     scheduler = CosineAnnealingWarmRestarts(my_optimizer, 20)
 
     os.makedirs('./runs', exist_ok=True)
-    writer = SummaryWriter(f'runs/{arch}_experiments')
+    writer = SummaryWriter(f'runs/{arch}_experiments_acc_only')
 
     for t in range(epochs):
         print(f"Epoch {t + 1}\n-------------------------------")
@@ -452,7 +457,7 @@ def run_cnn2d(epochs: int = 15, arch='my_resnet'):
 
     os.makedirs('./models', exist_ok=True)
     if test_loss < best_loss:
-        torch.save(my_model, f'./models/best-model-{arch}.pt')
+        torch.save(my_model, f'./models/best-model-{arch}-acc-only.pt')
 
     writer.close()
 
@@ -531,6 +536,8 @@ def run_randomforest_classifer(X_train, y_train, X_test, y_test):
 if __name__ == "__main__":
     X_tr, y_tr, X_te, y_te = load_train_test_data()
     # run_mlp(epochs=1000)
-    run_cnn2d(epochs=20, arch='my_resnet')
+    run_cnn2d(epochs=1000, arch='cnn2d')
+    # run_cnn2d(epochs=1000, arch='my_resnet', multichannel=True)
+    # run_cnn2d(epochs=1000, arch='resnet18_pretrained', multichannel=True)
     # run_xgboost_classifier(X_tr, y_tr, X_te, y_te)
     # run_randomforest_classifer(X_tr, y_tr, X_te, y_te)
