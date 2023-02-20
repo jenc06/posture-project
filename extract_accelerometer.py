@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 import glob
 import os
+import re
+
+from matplotlib import colors
 from sklearn import manifold
 from sklearn.decomposition import PCA
 import matplotlib.cm as cm
@@ -16,80 +19,46 @@ def select_acc(sensor_data):
     # all x values, but take only first three
 
 
-def select_gyr(sensor_data):
-    return np.hstack([sensor_data[:, 3:6], sensor_data[:, 12:15], sensor_data[:, 21:24]])
-
-
-def select_mag(sensor_data):
-    return np.hstack([sensor_data[:, 6:9], sensor_data[:, 15:18], sensor_data[:, 24:27]])
-
-
 # features are x, labels are y
 def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: np.ndarray, gyr_skip: bool = True):
     # use select functions to extract acc, mag, and gyro
     good_acc, mild_acc, bad_acc = select_acc(good_interp), select_acc(mild_interp), select_acc(bad_interp)
-    good_mag, mild_mag, bad_mag = select_mag(good_interp), select_mag(mild_interp), select_mag(bad_interp)
-    good_gyr, mild_gyr, bad_gyr = select_gyr(good_interp), select_gyr(mild_interp), select_gyr(bad_interp)
 
-    # horizontally stack acc,mag, and gyros so they are next to each other
-    good_ft = np.hstack([good_acc, good_mag, good_gyr])
-    mild_ft = np.hstack([mild_acc, mild_mag, mild_gyr])
-    bad_ft = np.hstack([bad_acc, bad_mag, bad_gyr])
-
-    if gyr_skip:
-        good_ft = np.hstack([good_acc, good_mag])
-        mild_ft = np.hstack([mild_acc, mild_mag])
-        bad_ft = np.hstack([bad_acc, bad_mag])
-
-        assert good_ft.shape[1] == 18, "Should gyro data be included?"
+    good_ft = good_acc
+    mild_ft = mild_acc
+    bad_ft = bad_acc
 
     # x: features, y: labels
     x = np.vstack([good_ft, mild_ft, bad_ft])
     y = np.hstack(
-        [0 * np.ones(good_ft.shape[0]), 1 * np.ones(mild_ft.shape[0]), 2 * np.ones(bad_ft.shape[0])]).T.astype(np.int64)
+        [0 * np.ones(good_ft.shape[0])]).T.astype(np.int64)
 
     return x, y
 
 
-def combine_cls_data(cls: str, sub_ids=1) -> np.ndarray:
+def combine_cls_data(cls: str, these_sub_ids) -> np.ndarray:
     data_all = []
-    # for sub_id in sub_ids:
-        #put final_interpolated files in data_all list
-        # temporarily replaced sub_id with 0 for spine model
-    # temporarily make manual
-    data_all += glob.glob(os.path.join(PREPROCESSED_DATA_FOLDER, f"final_interpolated_{cls}_s*.csv"))
+    for sub_id in these_sub_ids:
+        # print("SUB ID:", sub_id)
+        # print("PATH: ", os.path.join(PREPROCESSED_DATA_FOLDER, f"final_interpolated_{cls}_s_{sub_id:03}*.csv"))
+        data_all += glob.glob(os.path.join(PREPROCESSED_DATA_FOLDER, f"final_interpolated_{cls}_s_{sub_id:03}"+"*.csv"))
 
-
-    # print(data_all)
+    # print("DATA ALL", data_all)
     # combine all good data
-
     # make empty row with right size
     # have to stack data. if there is nothing on top, cannot stack. length has to be same to vertical length
     # loadtxt loads a text file into array
-    data_tmp = np.loadtxt(data_all[0], delimiter=',', skiprows=1, usecols=range(2, 29))
+    # print("DATA ALL SHAPE", data_all[0])
+    data_tmp = np.loadtxt(data_all[0], delimiter=',', skiprows=1, usecols=range(2, 28))
     # make empty numpy array where u are workign with first row and number of total columns from first file
     data_comb = np.empty((0, data_tmp.shape[1]))
     for data in data_all:
         # load into variable
-        data_arr = np.loadtxt(data, delimiter=',', skiprows=1, usecols=range(2, 29))
+        data_arr = np.loadtxt(data, delimiter=',', skiprows=1, usecols=range(2, 28))
         # vertically stack each file from data_all into data_comb
         data_comb = np.vstack([data_comb, data_arr])
 
     return data_comb
-
-
-def run_tsne(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    t_sne = manifold.TSNE(
-        n_components=3,
-        perplexity=30,
-        init="random",
-        n_iter=250,
-        random_state=0,
-    )
-    x_tsne_ = t_sne.fit_transform(x)
-    y_ = y.astype(np.int64)
-
-    return x_tsne_, y_
 
 
 def run_pca(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -99,21 +68,6 @@ def run_pca(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     y_ = y.astype(np.int64)
 
     return x_pca_, y_
-
-
-def run_mds(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    # MDS
-    md_scaling = manifold.MDS(
-        n_components=3,
-        max_iter=50,
-        n_init=4,
-        random_state=0,
-        normalized_stress=False,
-    )
-    x_mds_ = md_scaling.fit_transform(x)
-    y_ = y.astype(np.int64)
-
-    return x_mds_, y_
 
 
 def plot3d_embedding(X, y, elev=50, azim=50) -> None:
@@ -150,11 +104,11 @@ def plot3d_embedding(X, y, elev=50, azim=50) -> None:
 
 
 if __name__ == "__main__":
-    # separate data into each posture but NOT training and testing
-    good_combined = combine_cls_data('good')
-    mild_combined = combine_cls_data('mild')
-    bad_combined = combine_cls_data('bad')
 
+    sub_ids = [3, 4, 5]
+    good_combined = combine_cls_data('good', sub_ids)
+    mild_combined = combine_cls_data('mild', sub_ids)
+    bad_combined = combine_cls_data('bad', sub_ids)
     X_final, y_final = make_features(good_combined, mild_combined, bad_combined)
 
     print(X_final.shape, y_final.shape)

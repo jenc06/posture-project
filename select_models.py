@@ -1,6 +1,9 @@
 import os
+
+# import PATH as PATH
 import pandas as pd
 import numpy as np
+from torch.optim.lr_scheduler import ExponentialLR, MultiStepLR, ChainedScheduler, CyclicLR, ReduceLROnPlateau
 from xgboost import XGBClassifier
 from sklearn import svm
 from sklearn.model_selection import cross_val_score
@@ -11,17 +14,39 @@ from torch import nn
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, datasets, models
 import torch.nn.functional as F
+from xgboost.callback import EarlyStopping
 from select_features import PREPROCESSED_DATA_FOLDER
+import math
 import matplotlib.pyplot as plt
 from torchmetrics.classification import MulticlassConfusionMatrix
 from torch.optim.lr_scheduler import MultiplicativeLR, CosineAnnealingWarmRestarts
 from torch.utils.tensorboard import SummaryWriter
+from PIL import Image as im
 
 
 device = "cpu" if torch.backends.mps.is_available() else "cpu"
 print(f"Using {device} device")
 
 
+class EarlyStopper:
+    def __init__(self, patience=2, min_delta=0.1):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.min_test_loss = np.inf
+
+    def early_stop(self, test_loss):
+        if test_loss < self.min_test_loss:
+            self.min_test_loss = test_loss
+            self.counter = 0
+        elif test_loss > (self.min_test_loss + self.min_delta):
+            self.counter += 1
+            if self.counter >= self.patience:
+                return True
+        return False
+
+
+# make smt similar in 2d(image). my mLP into myCNN and try
 class PostureSensorDataset(Dataset):
     def __init__(self, csv_file, root_dir=None, transform=None):
         """
@@ -35,18 +60,24 @@ class PostureSensorDataset(Dataset):
         self.root_dir = root_dir
         self.transform = transform
 
+    # returns length of csv file
     def __len__(self):
         return len(self.sensor_data_frame)
 
+    # torch is type of data container.
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
+            # convert index to list
             idx = idx.tolist()
 
-        # sensor_data = self.sensor_data_frame.iloc[idx, :-1]
+        # use index idx to get columns from sensor data frame from index position 1 till end
+        # make into numpy array
         sensor_data = self.sensor_data_frame.iloc[idx, :9]
         sensor_data = np.array([sensor_data])
+        # change data to 32-bit numbers
         sensor_data = sensor_data.astype('float32')
 
+        # extract labels row by getting last column
         labels = self.sensor_data_frame.iloc[idx, -1]
         labels = np.array([labels])
         labels = labels.astype('int')
@@ -114,11 +145,18 @@ class PostureSensorDataset2D(Dataset):
 
 class MyMLP(nn.Module):
     def __init__(self, in_dim=9, out_dim=3):
+        # super is a function used to call the init class. all functions from init will run
         super().__init__()
+        # make tensor 1D
         self.flatten = nn.Flatten()
+        # sequence of layers: linear layers apply linear transformation, ReLU is nonlinear activation function
+        # LayerNorm = normalization layer. helps stabilize training
         self.linear_relu_stack = nn.Sequential(
             nn.Linear(in_dim, 32),
-            nn.LayerNorm(32),
+            nn.Linear(32, 64),
+            nn.ReLU(),
+            nn.LayerNorm(64),
+            nn.Linear(64, 32),
             nn.ReLU(),
             nn.Dropout(0.50),
             nn.Linear(32, 32),
@@ -128,7 +166,7 @@ class MyMLP(nn.Module):
             nn.Linear(32, out_dim),
             nn.ReLU(),
         )
-
+    # not sure what x is yet. logit is type of function that shows probability
     def forward(self, x):
         x = self.flatten(x)
         logits = self.linear_relu_stack(x)
@@ -266,7 +304,9 @@ def train_loop(dataloader, epoch, model, loss_fn, optimizer, scheduler=None, cnn
 
     for batch, data_sample in enumerate(dataloader):
         # Compute prediction and loss
+
         X = data_sample['sensor_data']
+        # torch.squeeze removes layer with size 1 dimension
         y = torch.squeeze(data_sample['labels'])
 
         for n in range(num_classes):
@@ -280,9 +320,12 @@ def train_loop(dataloader, epoch, model, loss_fn, optimizer, scheduler=None, cnn
         y_p[torch.arange(y.size(dim=0)), y] = 1
 
         try:
+            # move data X and y_pd to mps or cpu
             Xd = X.to(device)
             y_pd = y_p.to(device)
+            # make predictions by running Xd through model
             pred = model(Xd)
+            # find loss. pred is predictions. y_pd are true labels
             loss = loss_fn(pred, y_pd)
         except (ValueError, RuntimeError, TypeError) as e:
             print(e, y, y_pd, pred)
@@ -294,8 +337,11 @@ def train_loop(dataloader, epoch, model, loss_fn, optimizer, scheduler=None, cnn
                 torch.logical_and((pred.argmax(1) == y.to(device)), (y.to(device) == n)).type(torch.float).sum().item()
 
         # Backpropagation
+        # set all gradients of parameters to zero
         optimizer.zero_grad()
+        # backward pass
         loss.backward()
+        # update parameters based on new gradients
         optimizer.step()
 
         if not scheduler:
@@ -304,6 +350,7 @@ def train_loop(dataloader, epoch, model, loss_fn, optimizer, scheduler=None, cnn
         if batch % 50 == 0:
             loss, current = loss.item(), batch * len(X)
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+    return loss
 
             if writer:
                 writer.add_scalar('training loss', loss, epoch)
@@ -314,6 +361,7 @@ def train_loop(dataloader, epoch, model, loss_fn, optimizer, scheduler=None, cnn
 
 def test_loop(dataloader, epoch, model, loss_fn, cnn_2d=False, writer=None):
     size = len(dataloader.dataset)
+    # get number of batches
     num_batches = len(dataloader)
     num_classes = 4 if cnn_2d else 3
     test_loss, correct = 0, 0
@@ -326,6 +374,7 @@ def test_loop(dataloader, epoch, model, loss_fn, cnn_2d=False, writer=None):
     else:
         cm = torch.tensor([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
 
+    # torch no grad = no gradients calculated
     with torch.no_grad():
         for data_sample in dataloader:
             X = data_sample['sensor_data']
@@ -340,14 +389,15 @@ def test_loop(dataloader, epoch, model, loss_fn, cnn_2d=False, writer=None):
             Xd = X.to(device)
             y_pd = y_p.to(device)
             pred = model(Xd)
+            # loss_fn calculates loss between predicted and true values. add this to total test_loss
             test_loss += loss_fn(pred, y_pd).item()
-
             cm += metric(pred.argmax(1), y)
 
             for n in range(num_classes):
                 corrects[n] += \
                     torch.logical_and((pred.argmax(1) == y.to(device)), (y.to(device) == n)).type(torch.float).sum().item()
 
+    # get averages and print
     test_loss /= num_batches
     correct = sum(corrects)
     size = sum(sizes)
@@ -366,10 +416,12 @@ def test_loop(dataloader, epoch, model, loss_fn, cnn_2d=False, writer=None):
     print("test metric: ", cm)
     return test_loss
 
+    return test_loss
+
 
 def run_mlp(epochs: int = 15):
     if epochs == 0:
-        return
+        return "epochs was 0"
     # Need to load the train and test data separately
     # sensor_transform = transforms.Compose([transforms.ToTensor()])
     posture_sensor_dataset_train = PostureSensorDataset(os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv"))
@@ -436,7 +488,7 @@ def run_cnn2d(epochs: int = 15, arch='my_resnet', multichannel=False):
     else:
         raise Exception(f"Arch {arch} not supported.")
 
-    learning_rate = 1e-8
+    learning_rate = 1e-8 #6e-4
     best_loss = 1e9
 
     n_smp_cls = [14300, 11300, 9600, 50]
@@ -444,6 +496,7 @@ def run_cnn2d(epochs: int = 15, arch='my_resnet', multichannel=False):
     my_loss_fn = nn.CrossEntropyLoss(weight=wgt)
     my_optimizer = torch.optim.ASGD(my_model.parameters(), lr=learning_rate)
     scheduler = CosineAnnealingWarmRestarts(my_optimizer, 20)
+    early_stopping = EarlyStopper(patience=5, min_delta=0.5)
 
     os.makedirs('./runs', exist_ok=True)
     writer = SummaryWriter(f'runs/{arch}_experiments_acc_only')
@@ -455,18 +508,23 @@ def run_cnn2d(epochs: int = 15, arch='my_resnet', multichannel=False):
         test_loss = test_loop(test_dataloader, t, my_model, my_loss_fn,
                               writer=writer, cnn_2d=True)
 
+        if early_stopping.early_stop(test_losss):
+            print("We are at epoch:", t)
+            break
+
     os.makedirs('./models', exist_ok=True)
     if test_loss < best_loss:
         torch.save(my_model, f'./models/best-model-{arch}-acc-only.pt')
 
     writer.close()
-
     print("Done!")
+    # return my_loss_fn
 
 
 def load_train_test_data(corrupt_test_data: bool = False):
     train_data_csv = os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv")
     train_df = pd.read_csv(train_data_csv)
+    # frac=1 shuffle then return all rows of data
     train_df = train_df.sample(frac=1)
     X_train = train_df.iloc[:, :-1].values
     y_train = train_df.iloc[:, -1].values
@@ -477,6 +535,7 @@ def load_train_test_data(corrupt_test_data: bool = False):
     X_test = test_df.iloc[:, :-1].values
     y_test = test_df.iloc[:, -1].values
 
+    # made to check duplicate
     if corrupt_test_data:
         X_test[-10000:, :] = np.random.rand(10000, X_test.shape[1])
 

@@ -88,7 +88,8 @@ def extract_subject_ids(file_list: list[str]):
         sub_ids_.add(filename[start_ndx + 3:start_ndx + 6])
     return sub_ids_
 
-#take away repeating seconds. i.e.(1,2,2)->(1,2)
+
+# take away repeating seconds. i.e.(1,2,2)->(1,2)
 def remove_duplicates(arr: np.ndarray):
     seen = set()
     dup = []
@@ -121,9 +122,9 @@ def interpolate_signals(t_min: int, t_max: int, dfl: list[pd.DataFrame], raw_dat
 
     # need to do this after finding t_min and tmax
     for count, df in enumerate(dfl):
-        #function from before. arr would be one file from raw_imu_data(literally raw)
+        # function from before. arr would be one file from raw_imu_data(literally raw)
         arr = remove_duplicates(raw_data[count])
-        #time stamps
+        # time stamps
         x = arr[:, 0]
         csv_filename = os.path.split(df)[-1]
 
@@ -173,11 +174,11 @@ def plot_interpolated_data(min_ts: int, max_ts: int,
         plt.ylabel("Magnetometer value(microtesla)", fontsize=10)
     plt.show()
 
-#not sure what this is but doesn't look too important
+
 def test_visualization(df_list_test: list[str], interp_data) -> None:
     # visualize the results
     # change index for different degree of freedom
-    test_file = df_list_test[3]
+    test_file = df_list_test[0]
     raw_data_test = np.loadtxt(test_file, delimiter=",")
     csv_filename_test = os.path.split(test_file)[-1]
 
@@ -201,6 +202,7 @@ if __name__ == "__main__":
     for cls in CLASSES:
         data_dir = f'./data/{cls}'
         df_list = glob.glob(os.path.join(data_dir, "*.csv"))
+        print(df_list)
 
         trial_ids = extract_trial_ids(df_list)
         sub_ids = extract_subject_ids(df_list)

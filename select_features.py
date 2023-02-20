@@ -3,12 +3,16 @@ import numpy as np
 import pandas as pd
 import glob
 import os
+
+from matplotlib import cm
 from sklearn import manifold
-from sklearn.decomposition import PCA
-import matplotlib.cm as cm
+# from sklearn.decomposition import PCA
+# import matplotlib.cm as cm
 
 # contains all the interpolated files
-PREPROCESSED_DATA_FOLDER = "./data/preprocessed/"
+from sklearn.decomposition import PCA
+
+PREPROCESSED_DATA_FOLDER = "./data/preprocessed/all/"
 
 
 def select_acc(sensor_data):
@@ -42,6 +46,7 @@ def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: 
         bad_ft = np.hstack([bad_acc, bad_mag])
 
         assert good_ft.shape[1] == 18, "Should gyro data be included?"
+    
 
     # x: features, y: labels
     x = np.vstack([good_ft, mild_ft, bad_ft])
@@ -49,44 +54,6 @@ def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: 
         [0 * np.ones(good_ft.shape[0]), 1 * np.ones(mild_ft.shape[0]), 2 * np.ones(bad_ft.shape[0])]).T.astype(np.int64)
 
     return x, y
-
-
-# def run_pca(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-#     pca = PCA(n_components=3)
-#     pca.fit(x)
-#     x_pca_ = pca.transform(x)
-#     y_ = y.astype(np.int64)
-#
-#     return x_pca_, y_
-
-
-# def run_mds(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-#     # MDS
-#     md_scaling = manifold.MDS(
-#         n_components=3,
-#         max_iter=50,
-#         n_init=4,
-#         random_state=0,
-#         normalized_stress=False,
-#     )
-#     x_mds_ = md_scaling.fit_transform(x)
-#     y_ = y.astype(np.int64)
-#
-#     return x_mds_, y_
-
-
-def run_tsne(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    t_sne = manifold.TSNE(
-        n_components=3,
-        perplexity=30,
-        init="random",
-        n_iter=250,
-        random_state=0,
-    )
-    x_tsne_ = t_sne.fit_transform(x)
-    y_ = y.astype(np.int64)
-
-    return x_tsne_, y_
 
 
 def combine_cls_data(cls: str, sub_ids) -> np.ndarray:
@@ -113,38 +80,6 @@ def combine_cls_data(cls: str, sub_ids) -> np.ndarray:
     return data_comb
 
 
-# def plot3d_embedding(X, y, elev=50, azim=50) -> None:
-#     fig = plt.figure(1, figsize=(8, 6))
-#     plt.clf()
-#
-#     ax = fig.add_subplot(111, projection="3d", elev=elev, azim=azim)
-#     ax.set_position([0, 0, 0.95, 1])
-#     plt.cla()
-#
-#     for name, label in [("Good", 0), ("Mild", 1), ("Bad", 2)]:
-#         txt_colors = {0: "purple", 1: "green", 2: "red"}
-#         ax.text3D(
-#             X[y == label, 0].mean(),
-#             X[y == label, 1].mean() + 10 * label,
-#             X[y == label, 2].mean(),
-#             name,
-#             horizontalalignment="center",
-#             bbox=dict(alpha=0.9, edgecolor=txt_colors[label], facecolor=txt_colors[label]),
-#         )
-
-    # Reorder the labels to have colors matching the cluster results
-    # 0: purple (good), 1: green (mild), 2: red (bad)
-    # colors = cm.rainbow(np.linspace(0, 1, 3))
-    # y_tmp = colors[np.choose(y, [0, 1, 2]).astype(int)]
-    # ax.scatter(X[:, 0], X[:, 1], X[:, 2], c=y_tmp, edgecolor="w")
-    #
-    # ax.xaxis.set_ticklabels([])
-    # ax.yaxis.set_ticklabels([])
-    # ax.zaxis.set_ticklabels([])
-    #
-    # plt.show()
-
-
 def duplicate_exist(train_csv, test_csv):
     tr_arr = pd.read_csv(train_csv).values
     te_arr = pd.read_csv(test_csv).values
@@ -156,14 +91,84 @@ def duplicate_exist(train_csv, test_csv):
     return True if len(unq[count>1]) > 0 else False
 
 
+def run_tsne(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    t_sne = manifold.TSNE(
+        n_components=3,
+        perplexity=30,
+        init="random",
+        n_iter=250,
+        random_state=0,
+    )
+    x_tsne_ = t_sne.fit_transform(x)
+    y_ = y.astype(np.int64)
+
+    return x_tsne_, y_
+
+
+
+def run_pca(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    pca = PCA(n_components=3)
+    pca.fit(x)
+    x_pca_ = pca.transform(x)
+    y_ = y.astype(np.int64)
+
+    return x_pca_, y_
+
+
+# def run_mds(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+#     # MDS
+#     md_scaling = manifold.MDS(
+#         n_components=3,
+#         max_iter=50,
+#         n_init=4,
+#         random_state=0,
+#         normalized_stress=False,
+#     )
+#     x_mds_ = md_scaling.fit_transform(x)
+#     y_ = y.astype(np.int64)
+#
+#     return x_mds_, y_
+
+def plot3d_embedding(X, y, elev=50, azim=50) -> None:
+    fig = plt.figure(1, figsize=(8, 6))
+    plt.clf()
+
+    ax = fig.add_subplot(111, projection="3d", elev=elev, azim=azim)
+    ax.set_position([0, 0, 0.95, 1])
+    plt.cla()
+
+    for name, label in [("Good", 0), ("Mild", 1), ("Bad", 2)]:
+        txt_colors = {0: "purple", 1: "green", 2: "red"}
+        ax.text3D(
+            X[y == label, 0].mean(),
+            X[y == label, 1].mean() + 10 * label,
+            X[y == label, 2].mean(),
+            name,
+            horizontalalignment="center",
+            bbox=dict(alpha=0.9, edgecolor=txt_colors[label], facecolor=txt_colors[label]),
+        )
+
+    # Reorder the labels to have colors matching the cluster results
+    # 0: purple (good), 1: green (mild), 2: red (bad)
+    colors = cm.rainbow(np.linspace(0, 1, 3))
+    y_tmp = colors[np.choose(y, [0, 1, 2]).astype(int)]
+    ax.scatter(X[:, 0], X[:, 1], X[:, 2], c=y_tmp, edgecolor="w")
+
+    ax.xaxis.set_ticklabels([])
+    ax.yaxis.set_ticklabels([])
+    ax.zaxis.set_ticklabels([])
+
+    plt.show()
+
+
 if __name__ == "__main__":
     # read the data (skip the first row and first two columns (1st: index, 2nd: timestamp))
     # skiprows deletes header(0,1,2...)
     # usecols range deletes time stamp column
 
     # combine each class data
-    train_sub_ids = [0]
-    test_sub_ids = [1, 2, 3]
+    train_sub_ids = [0, 1, 2, 3, 4, 10, 11]
+    test_sub_ids = [12, 7, 6, 5]
 
     # separate the data into training and testing sections
     good_combined_train = combine_cls_data('good', train_sub_ids)
@@ -184,23 +189,23 @@ if __name__ == "__main__":
 
     df_train = pd.DataFrame(np.hstack([X_train, np.expand_dims(y_train, axis=1)]), columns=None)
     df_test = pd.DataFrame(np.hstack([X_test, np.expand_dims(y_test, axis=1)]), columns=None)
-
+    #
     train_csv = os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv")
     test_csv = os.path.join(PREPROCESSED_DATA_FOLDER, "test_data.csv")
-    df_train.to_csv(train_csv, header=None, index=False)
-    df_test.to_csv(test_csv, header=None, index=False)
+    # df_train.to_csv(train_csv, header=None, index=False)
+    # df_test.to_csv(test_csv, header=None, index=False)
 
     if duplicate_exist(train_csv, test_csv):
         raise Exception("Train and test data have duplicates")
 
-    # print("Running PCA")
-    # X_pca, y = run_pca(X_train, y_train)
+    print("Running PCA")
+    X_pca, y = run_pca(X_train, y_train)
     # print("Running MDS")
     # X_mds, y = run_mds(X, y)
     # print("Running t-SNE")
     # X_tsne, y = run_tsne(X, y)
 
-    # plot3d_embedding(X_pca, y)
+    plot3d_embedding(X_pca, y)
 
     # x_mds, y = run_mds(x, y)
     # plot3d_embedding(x_mds, y)
