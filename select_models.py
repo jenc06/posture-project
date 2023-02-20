@@ -23,7 +23,7 @@ print(f"Using {device} device")
 
 
 class PostureSensorDataset(Dataset):
-    def __init__(self, csv_file, root_dir=None, transform=None):
+    def __init__(self, csv_file, root_dir=None, transform=None, acc_only=False):
         """
         Args:
             csv_file (string): Path to the csv file with annotations.
@@ -34,6 +34,7 @@ class PostureSensorDataset(Dataset):
         self.sensor_data_frame = pd.read_csv(csv_file)
         self.root_dir = root_dir
         self.transform = transform
+        self.acc_only = acc_only
 
     def __len__(self):
         return len(self.sensor_data_frame)
@@ -42,12 +43,19 @@ class PostureSensorDataset(Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        # sensor_data = self.sensor_data_frame.iloc[idx, :-1]
-        sensor_data = self.sensor_data_frame.iloc[idx, :9]
+        if self.acc_only:
+            sensor_data = self.sensor_data_frame.iloc[idx, :9]
+        else:
+            sensor_data = self.sensor_data_frame.iloc[idx, :-1]
+
         sensor_data = np.array([sensor_data])
         sensor_data = sensor_data.astype('float32')
 
-        labels = self.sensor_data_frame.iloc[idx, -1]
+        if self.acc_only:
+            labels = self.sensor_data_frame.iloc[idx, :9]
+        else:
+            labels = self.sensor_data_frame.iloc[idx, -1]
+
         labels = np.array([labels])
         labels = labels.astype('int')
 
@@ -60,7 +68,7 @@ class PostureSensorDataset(Dataset):
 
 
 class PostureSensorDataset2D(Dataset):
-    def __init__(self, csv_file, root_dir=None, transform=None, multichannel=False):
+    def __init__(self, csv_file, root_dir=None, transform=None, multichannel=False, acc_only=False):
         """
         Args:
             csv_file (string): Path to the csv file with annotations.
@@ -73,6 +81,7 @@ class PostureSensorDataset2D(Dataset):
         self.transform = transform
         self.num_ts = 10
         self.multichannel = multichannel
+        self.acc_only = acc_only
 
     def __len__(self):
         return len(self.sensor_data_frame) // self.num_ts
@@ -81,15 +90,22 @@ class PostureSensorDataset2D(Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        # sensor_data = self.sensor_data_frame.iloc[idx*self.num_ts:(idx+1)*self.num_ts, :-1]
-        sensor_data = self.sensor_data_frame.iloc[idx * self.num_ts:(idx + 1) * self.num_ts, :9]
+        if self.acc_only:
+            sensor_data = self.sensor_data_frame.iloc[idx * self.num_ts:(idx + 1) * self.num_ts, :9]
+        else:
+            sensor_data = self.sensor_data_frame.iloc[idx*self.num_ts:(idx+1)*self.num_ts, :-1]
+
         if self.multichannel:
             sensor_data = np.expand_dims(sensor_data, 2)
             sensor_data = np.tile(sensor_data, (1, 1, 3))
             sensor_data = np.transpose(sensor_data, [2, 0, 1])
         sensor_data = sensor_data.astype('float32').to_numpy()
 
-        labels = self.sensor_data_frame.iloc[idx * self.num_ts:(idx + 1) * self.num_ts, -1]
+        if self.acc_only:
+            labels = self.sensor_data_frame.iloc[idx * self.num_ts:(idx + 1) * self.num_ts, :9]
+        else:
+            labels = self.sensor_data_frame.iloc[idx * self.num_ts:(idx + 1) * self.num_ts, -1]
+
         if all(labels == 0):
             # print("label 0")
             labels = 0
@@ -113,19 +129,19 @@ class PostureSensorDataset2D(Dataset):
 
 
 class MyMLP(nn.Module):
-    def __init__(self, in_dim=9, out_dim=3):
+    def __init__(self, in_dim=18, out_dim=3):
         super().__init__()
         self.flatten = nn.Flatten()
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(in_dim, 32),
-            nn.LayerNorm(32),
+            nn.Linear(in_dim, 16),
+            nn.LayerNorm(16),
             nn.ReLU(),
             nn.Dropout(0.50),
-            nn.Linear(32, 32),
-            nn.LayerNorm(32),
+            nn.Linear(16, 16),
+            nn.LayerNorm(16),
             nn.ReLU(),
             nn.Dropout(0.50),
-            nn.Linear(32, out_dim),
+            nn.Linear(16, out_dim),
             nn.ReLU(),
         )
 
@@ -233,21 +249,24 @@ class MyCNN2D(nn.Module):
         super().__init__()
         self.conv1 = nn.Conv2d(in_dim, 6, 3)
         self.pool1 = nn.MaxPool2d(2, 2)
+        self.bn1 = nn.BatchNorm2d(6)
         self.conv2 = nn.Conv2d(6, 32, 1)
         self.pool2 = nn.MaxPool2d(2, 2)
+        self.bn2 = nn.BatchNorm2d(32)
         self.fc1 = nn.Linear(64, 64)
         self.fc2 = nn.Linear(64, 32)
         self.fc3 = nn.Linear(32, out_dim)
+        self.dropout = nn.Dropout(0.50)
 
     def forward(self, x):
         x = torch.transpose(x[None, :, :, :], 0, 1)
-        x = self.pool1(F.relu(self.conv1(x)))
-        x = self.pool2(F.relu(self.conv2(x)))
+        x = self.dropout(self.pool1(F.relu(self.bn1(self.conv1(x)))))
+        x = self.dropout(self.pool2(F.relu(self.bn2(self.conv2(x)))))
         x = torch.flatten(x, 1)  # flatten all dimensions except batch
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = self.dropout(F.relu(self.fc1(x)))
+        x = self.dropout(F.relu(self.fc2(x)))
         x = self.fc3(x)
-        print(x)
+        # print(x)
         return x
 
 
@@ -383,16 +402,20 @@ def run_mlp(epochs: int = 15):
 
     learning_rate = 1e-4
 
-    n_smp_cls = [14300, 11300, 9600]
-    wgt = torch.tensor(n_smp_cls) / sum(n_smp_cls)
-    my_loss_fn = nn.CrossEntropyLoss(weight=wgt)
+    # n_smp_cls = [14300, 11300, 9600]
+    # wgt = torch.tensor(n_smp_cls) / sum(n_smp_cls)
+    # my_loss_fn = nn.CrossEntropyLoss(weight=wgt)
+    my_loss_fn = nn.CrossEntropyLoss()
     my_optimizer = torch.optim.ASGD(my_model.parameters(), lr=learning_rate)
-    # lmbda = lambda epoch: 0.95
-    # scheduler = MultiplicativeLR(my_optimizer, lr_lambda=lmbda)
-    scheduler = CosineAnnealingWarmRestarts(my_optimizer, 10)
+    lmbda = lambda epoch: 0.99
+    scheduler = MultiplicativeLR(my_optimizer, lr_lambda=lmbda)
+    # scheduler = CosineAnnealingWarmRestarts(my_optimizer, 10)
 
     os.makedirs('./runs', exist_ok=True)
-    writer = SummaryWriter('runs/mlp_experiments_acc_only/')
+    if posture_sensor_dataset_train.acc_only:
+        writer = SummaryWriter('runs/mlp_experiments_acc_only/')
+    else:
+        writer = SummaryWriter('runs/mlp_experiments_acc_mag/')
 
     best_loss = 1e9
     os.makedirs('./models', exist_ok=True)
@@ -402,7 +425,10 @@ def run_mlp(epochs: int = 15):
         test_loss = test_loop(test_dataloader, t, my_model, my_loss_fn, writer=writer)
 
         if test_loss < best_loss:
-            torch.save(my_model, './models/best-model-mlp-acc-only.pt')
+            if posture_sensor_dataset_train.acc_only:
+                torch.save(my_model, './models/best-model-mlp-acc-only.pt')
+            else:
+                torch.save(my_model, './models/best-model-mlp-acc-mag.pt')
 
     writer.close()
 
@@ -436,7 +462,7 @@ def run_cnn2d(epochs: int = 15, arch='my_resnet', multichannel=False):
     else:
         raise Exception(f"Arch {arch} not supported.")
 
-    learning_rate = 1e-8
+    learning_rate = 1e-2
     best_loss = 1e9
 
     n_smp_cls = [14300, 11300, 9600, 50]
@@ -446,7 +472,10 @@ def run_cnn2d(epochs: int = 15, arch='my_resnet', multichannel=False):
     scheduler = CosineAnnealingWarmRestarts(my_optimizer, 20)
 
     os.makedirs('./runs', exist_ok=True)
-    writer = SummaryWriter(f'runs/{arch}_experiments_acc_only')
+    if posture_sensor_dataset_train.acc_only:
+        writer = SummaryWriter(f'runs/{arch}_experiments_acc_only')
+    else:
+        writer = SummaryWriter(f'runs/{arch}_experiments_acc_mag')
 
     for t in range(epochs):
         print(f"Epoch {t + 1}\n-------------------------------")
@@ -457,7 +486,10 @@ def run_cnn2d(epochs: int = 15, arch='my_resnet', multichannel=False):
 
     os.makedirs('./models', exist_ok=True)
     if test_loss < best_loss:
-        torch.save(my_model, f'./models/best-model-{arch}-acc-only.pt')
+        if posture_sensor_dataset_train.acc_only:
+            torch.save(my_model, f'./models/best-model-{arch}-acc-only.pt')
+        else:
+            torch.save(my_model, f'./models/best-model-{arch}-acc-mag.pt')
 
     writer.close()
 
@@ -535,8 +567,8 @@ def run_randomforest_classifer(X_train, y_train, X_test, y_test):
 
 if __name__ == "__main__":
     X_tr, y_tr, X_te, y_te = load_train_test_data()
-    # run_mlp(epochs=1000)
-    run_cnn2d(epochs=1000, arch='cnn2d')
+    run_mlp(epochs=1000)
+    # run_cnn2d(epochs=1000, arch='cnn2d')
     # run_cnn2d(epochs=1000, arch='my_resnet', multichannel=True)
     # run_cnn2d(epochs=1000, arch='resnet18_pretrained', multichannel=True)
     # run_xgboost_classifier(X_tr, y_tr, X_te, y_te)
