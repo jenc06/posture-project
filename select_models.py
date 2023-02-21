@@ -88,7 +88,7 @@ class PostureSensorDataset(Dataset):
         labels = self.sensor_data_frame.iloc[idx, -1]
 
         if self.acc_only:
-            labels = self.sensor_data_frame.iloc[idx, :9]
+            labels = self.sensor_data_frame.iloc[idx, -1]
         else:
             labels = self.sensor_data_frame.iloc[idx, -1]
 
@@ -129,16 +129,20 @@ class PostureSensorDataset2D(Dataset):
         if self.acc_only:
             sensor_data = self.sensor_data_frame.iloc[idx * self.num_ts:(idx + 1) * self.num_ts, :9]
         else:
-            sensor_data = self.sensor_data_frame.iloc[idx*self.num_ts:(idx+1)*self.num_ts, :-1]
+            sensor_data = self.sensor_data_frame.iloc[idx * self.num_ts:(idx + 1) * self.num_ts, :-1]
 
         if self.multichannel:
             sensor_data = np.expand_dims(sensor_data, 2)
             sensor_data = np.tile(sensor_data, (1, 1, 3))
             sensor_data = np.transpose(sensor_data, [2, 0, 1])
-        sensor_data = sensor_data.astype('float32').to_numpy()
+
+        if not isinstance(sensor_data, np.ndarray):
+            sensor_data = sensor_data.astype('float32').to_numpy()
+        else:
+            sensor_data = sensor_data.astype('float32')
 
         if self.acc_only:
-            labels = self.sensor_data_frame.iloc[idx * self.num_ts:(idx + 1) * self.num_ts, :9]
+            labels = self.sensor_data_frame.iloc[idx * self.num_ts:(idx + 1) * self.num_ts, -1]
         else:
             labels = self.sensor_data_frame.iloc[idx * self.num_ts:(idx + 1) * self.num_ts, -1]
 
@@ -244,9 +248,9 @@ class ResidualBlock(nn.Module):
         residual = x
         out = self.conv1(x)
         out = self.bn1(out)
-        out = self.relu(out)
-        out = self.conv2(out)
-        out = self.bn2(out)
+        # out = self.relu(out)
+        # out = self.conv2(out)
+        # out = self.bn2(out)
         if self.downsample:
             residual = self.downsample(x)
         out += residual
@@ -256,7 +260,7 @@ class ResidualBlock(nn.Module):
 
 # ResNet
 class ResNet(nn.Module):
-    def __init__(self, block, layers, num_classes=4):
+    def __init__(self, block, layers, num_classes=4, acc_only=False):
         super(ResNet, self).__init__()
         self.in_channels = 16
         self.conv = conv3x3(3, 16)
@@ -264,7 +268,10 @@ class ResNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.layer1 = self.make_layer(block, 16, layers[0])
         self.avg_pool = nn.AvgPool2d(5)
-        self.fc = nn.Linear(32, num_classes)
+        if acc_only:
+            self.fc = nn.Linear(32, num_classes)
+        else:
+            self.fc = nn.Linear(96, num_classes)
 
     def make_layer(self, block, out_channels, blocks, stride=1):
         downsample = None
@@ -385,11 +392,11 @@ def train_loop(dataloader, epoch, model, loss_fn, optimizer, scheduler=None, cnn
                 writer.add_scalar('training acc', 100 * sum(corrects) / sum(sizes), epoch)
 
 
-def test_loop(dataloader, epoch, model, loss_fn, cnn_2d=False, writer=None):
+def test_loop(dataloader, epoch, model, loss_fn, cnn2d=False, writer=None):
     size = len(dataloader.dataset)
     # get number of batches
     num_batches = len(dataloader)
-    num_classes = 4 if cnn_2d else 3
+    num_classes = 4 if cnn2d else 3
     test_loss, correct = 0, 0
     sizes = [0] * num_classes
     corrects = [0] * num_classes
@@ -496,17 +503,17 @@ def run_mlp(epochs: int = 15):
     print("Done!")
 
 
-def run_cnn2d(epochs: int = 15, arch='my_resnet', multichannel=False):
+def run_cnn2d(epochs: int = 15, arch='my_resnet', multichannel=False, acc_only=False):
     if epochs == 0:
         return
     # Need to load the train and test data separately
     # sensor_transform = transforms.Compose([transforms.ToTensor()])
     posture_sensor_dataset_train = PostureSensorDataset2D(os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv"),
-                                                          multichannel=multichannel)
+                                                          multichannel=multichannel, acc_only=acc_only)
     train_dataloader = DataLoader(posture_sensor_dataset_train, batch_size=16, shuffle=True, num_workers=0)
 
     posture_sensor_dataset_test = PostureSensorDataset2D(os.path.join(PREPROCESSED_DATA_FOLDER, "test_data.csv"),
-                                                         multichannel=multichannel)
+                                                         multichannel=multichannel, acc_only=acc_only)
     test_dataloader = DataLoader(posture_sensor_dataset_test, batch_size=4, shuffle=False, num_workers=0)
 
     # Make a 2D CNN
@@ -519,7 +526,7 @@ def run_cnn2d(epochs: int = 15, arch='my_resnet', multichannel=False):
         my_model.fc = nn.Linear(num_ftrs, num_classes)
         my_model.to(device)
     elif arch == 'my_resnet':
-        my_model = ResNet(ResidualBlock, [1]).to(device)
+        my_model = ResNet(ResidualBlock, [1], acc_only=posture_sensor_dataset_train.acc_only).to(device)
     else:
         raise Exception(f"Arch {arch} not supported.")
 
@@ -545,7 +552,7 @@ def run_cnn2d(epochs: int = 15, arch='my_resnet', multichannel=False):
         train_loop(train_dataloader, t, my_model, my_loss_fn, my_optimizer,
                    scheduler=scheduler, writer=writer, cnn2d=True)
         test_loss = test_loop(test_dataloader, t, my_model, my_loss_fn,
-                              writer=writer, cnn_2d=True)
+                              writer=writer, cnn2d=True)
 
         if early_stopping.early_stop(test_losss):
             print("We are at epoch:", t)
@@ -617,7 +624,7 @@ def run_randomforest_classifer(X_train, y_train, X_test, y_test):
 
     # train a random forest model
     print("Random Forest using the raw data")
-    rfc_model = RandomForestClassifier(n_estimators=100, max_depth=3, random_state=10)
+    rfc_model = RandomForestClassifier(n_estimators=1000, max_depth=3, random_state=10)
     rfc_model.fit(X_train, y_train)
     print("Cross validation scores:")
     print(cross_val_score(RandomForestClassifier(max_depth=3, random_state=10), X_train, y_train, cv=cv))
@@ -639,9 +646,9 @@ def run_randomforest_classifer(X_train, y_train, X_test, y_test):
 
 if __name__ == "__main__":
     X_tr, y_tr, X_te, y_te = load_train_test_data()
-    run_mlp(epochs=1000)
+    # run_mlp(epochs=1000)
     # run_cnn2d(epochs=1000, arch='cnn2d')
-    # run_cnn2d(epochs=1000, arch='my_resnet', multichannel=True)
+    run_cnn2d(epochs=1000, arch='my_resnet', multichannel=True, acc_only=True)
     # run_cnn2d(epochs=1000, arch='resnet18_pretrained', multichannel=True)
     # run_xgboost_classifier(X_tr, y_tr, X_te, y_te)
     # run_randomforest_classifer(X_tr, y_tr, X_te, y_te)
