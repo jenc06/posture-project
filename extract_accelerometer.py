@@ -31,7 +31,9 @@ def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: 
     # x: features, y: labels
     x = np.vstack([good_ft, mild_ft, bad_ft])
     y = np.hstack(
-        [0 * np.ones(good_ft.shape[0])]).T.astype(np.int64)
+        [0 * np.ones(good_ft.shape[0]),
+         1 * np.ones(mild_ft.shape[0]),
+         2 * np.ones(bad_ft.shape[0]) ]).T.astype(np.int64)
 
     return x, y
 
@@ -88,7 +90,6 @@ def plot3d_embedding(X, y, elev=50, azim=50) -> None:
             horizontalalignment="center",
             bbox=dict(alpha=0.9, edgecolor=txt_colors[label], facecolor=txt_colors[label]),
         )
-
 
     # Reorder the labels to have colors matching the cluster results
     # 0: purple (good), 1: green (mild), 2: red (bad)

@@ -166,6 +166,7 @@ class MyMLP(nn.Module):
             nn.Linear(32, out_dim),
             nn.ReLU(),
         )
+
     # not sure what x is yet. logit is type of function that shows probability
     def forward(self, x):
         x = self.flatten(x)
@@ -285,7 +286,6 @@ class MyCNN2D(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
-        print(x)
         return x
 
 
@@ -350,13 +350,10 @@ def train_loop(dataloader, epoch, model, loss_fn, optimizer, scheduler=None, cnn
         if batch % 50 == 0:
             loss, current = loss.item(), batch * len(X)
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
-    return loss
 
             if writer:
                 writer.add_scalar('training loss', loss, epoch)
                 writer.add_scalar('training acc', 100 * sum(corrects) / sum(sizes), epoch)
-
-    print("training metric: ", cm)
 
 
 def test_loop(dataloader, epoch, model, loss_fn, cnn_2d=False, writer=None):
@@ -413,9 +410,7 @@ def test_loop(dataloader, epoch, model, loss_fn, cnn_2d=False, writer=None):
         writer.add_scalar('test loss', test_loss, epoch)
         writer.add_scalar('test acc', 100*correct/size, epoch)
 
-    print("test metric: ", cm)
-    return test_loss
-
+    # print("test metric: ", cm)
     return test_loss
 
 
@@ -448,10 +443,14 @@ def run_mlp(epochs: int = 15):
 
     best_loss = 1e9
     os.makedirs('./models', exist_ok=True)
+    early_stopping=EarlyStopper(patience=20 ,min_delta=0.05)
     for t in range(epochs):
         print(f"Epoch {t + 1}\n-------------------------------")
         train_loop(train_dataloader, t, my_model, my_loss_fn, my_optimizer, scheduler=scheduler, writer=writer)
         test_loss = test_loop(test_dataloader, t, my_model, my_loss_fn, writer=writer)
+        if early_stopping.early_stop(test_loss):
+            print("we are at epoch:",t)
+            break
 
         if test_loss < best_loss:
             torch.save(my_model, './models/best-model-mlp-acc-only.pt')
@@ -591,11 +590,14 @@ def run_randomforest_classifer(X_train, y_train, X_test, y_test):
     print(f"(RandomForest) Test Error: \n Accuracy: {(100 * correct):>0.1f}% \n")
     print(cm)
 
+    conf_bad_good = np.where(np.logical_and(y_test == 2, y_pred == 0))
+    print(conf_bad_good)
+
 
 if __name__ == "__main__":
     X_tr, y_tr, X_te, y_te = load_train_test_data()
-    # run_mlp(epochs=1000)
-    run_cnn2d(epochs=1000, arch='cnn2d')
+    run_mlp(epochs=1000)
+    # run_cnn2d(epochs=1000, arch='cnn2d')
     # run_cnn2d(epochs=1000, arch='my_resnet', multichannel=True)
     # run_cnn2d(epochs=1000, arch='resnet18_pretrained', multichannel=True)
     # run_xgboost_classifier(X_tr, y_tr, X_te, y_te)
