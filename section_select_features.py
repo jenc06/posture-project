@@ -25,16 +25,16 @@ def select_mag(sensor_data):
 
 
 # features are x, labels are y
-def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: np.ndarray, gyr_skip: bool = True):
+def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: np.ndarray, gyr_skip: bool = False):
     # use select functions to extract acc, mag, and gyro
     good_acc, mild_acc, bad_acc = select_acc(good_interp), select_acc(mild_interp), select_acc(bad_interp)
     good_mag, mild_mag, bad_mag = select_mag(good_interp), select_mag(mild_interp), select_mag(bad_interp)
     good_gyr, mild_gyr, bad_gyr = select_gyr(good_interp), select_gyr(mild_interp), select_gyr(bad_interp)
 
     # horizontally stack acc,mag, and gyros so they are next to each other
-    good_ft = np.hstack([good_acc, good_mag, good_gyr])
-    mild_ft = np.hstack([mild_acc, mild_mag, mild_gyr])
-    bad_ft = np.hstack([bad_acc, bad_mag, bad_gyr])
+    good_ft = np.hstack([good_acc])
+    mild_ft = np.hstack([mild_acc])
+    bad_ft = np.hstack([bad_acc])
 
     if gyr_skip:
         good_ft = np.hstack([good_acc, good_mag])
@@ -150,7 +150,7 @@ def plot3d_embedding(X, y, elev=50, azim=50) -> None:
 
 if __name__ == "__main__":
     # separate data into each posture but NOT training and testing
-    sub_id_list = [3,4]
+    sub_id_list = [2]
     good_combined = combine_cls_data('good', sub_id_list)
     mild_combined = combine_cls_data('mild', sub_id_list)
     bad_combined = combine_cls_data('bad', sub_id_list)

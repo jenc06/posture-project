@@ -18,11 +18,19 @@ def select_acc(sensor_data):
     return np.hstack([sensor_data[:, :3], sensor_data[:, 9:12], sensor_data[:, 18:21]])
     # all x values, but take only first three
 
+def select_gyr(sensor_data):
+    return np.hstack([sensor_data[:, 3:6], sensor_data[:, 12:15], sensor_data[:, 21:24]])
+
+
+def select_mag(sensor_data):
+    return np.hstack([sensor_data[:, 6:9], sensor_data[:, 15:18], sensor_data[:, 24:27]])
+
 
 # features are x, labels are y
 def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: np.ndarray, gyr_skip: bool = True):
     # use select functions to extract acc, mag, and gyro
     good_acc, mild_acc, bad_acc = select_acc(good_interp), select_acc(mild_interp), select_acc(bad_interp)
+    good_gyr, mild_gyr, bad_gyr = select_gyr(good_interp), select_gyr(mild_interp), select_gyr(bad_interp)
 
     good_ft = good_acc
     mild_ft = mild_acc
@@ -41,7 +49,7 @@ def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: 
 def combine_cls_data(cls: str, these_sub_ids) -> np.ndarray:
     data_all = []
     for sub_id in these_sub_ids:
-        # print("SUB ID:", sub_id)
+        print("SUB ID:", sub_id)
         # print("PATH: ", os.path.join(PREPROCESSED_DATA_FOLDER, f"final_interpolated_{cls}_s_{sub_id:03}*.csv"))
         data_all += glob.glob(os.path.join(PREPROCESSED_DATA_FOLDER, f"final_interpolated_{cls}_s_{sub_id:03}"+"*.csv"))
 
@@ -106,7 +114,7 @@ def plot3d_embedding(X, y, elev=50, azim=50) -> None:
 
 if __name__ == "__main__":
 
-    sub_ids = [3, 4, 5]
+    sub_ids = [0,1,2,3, 4, 5,6,7,8,10,11,12]
     good_combined = combine_cls_data('good', sub_ids)
     mild_combined = combine_cls_data('mild', sub_ids)
     bad_combined = combine_cls_data('bad', sub_ids)

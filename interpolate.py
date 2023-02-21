@@ -219,7 +219,7 @@ if __name__ == "__main__":
                 final_df = pd.DataFrame(interpolated_data)
 
                 os.makedirs('./data/preprocessed', exist_ok=True)
-                final_df.to_csv(f"./data/preprocessed/final_interpolated_{cls}_s_{sub_id}_t_{trial_id}.csv")
+                final_df.to_csv(f"./data/preprocessed/all/final_interpolated_{cls}_s_{sub_id}_t_{trial_id}.csv")
 
                 # visualize the results
                 # test_visualization(df_list, interpolated_data)

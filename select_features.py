@@ -29,7 +29,7 @@ def select_mag(sensor_data):
 
 
 # features are x, labels are y
-def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: np.ndarray, gyr_skip: bool = True):
+def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: np.ndarray, gyr_skip: bool = False):
     # use select functions to extract acc, mag, and gyro
     good_acc, mild_acc, bad_acc = select_acc(good_interp), select_acc(mild_interp), select_acc(bad_interp)
     good_mag, mild_mag, bad_mag = select_mag(good_interp), select_mag(mild_interp), select_mag(bad_interp)
@@ -167,8 +167,8 @@ if __name__ == "__main__":
     # usecols range deletes time stamp column
 
     # combine each class data
-    train_sub_ids = [0, 1, 2, 3, 4, 10, 11]
-    test_sub_ids = [12, 7, 6, 5]
+    train_sub_ids = [0,1,2,3,4,5,6,7,8,10,11]
+    test_sub_ids = [12]
 
     # separate the data into training and testing sections
     good_combined_train = combine_cls_data('good', train_sub_ids)
@@ -190,22 +190,22 @@ if __name__ == "__main__":
     df_train = pd.DataFrame(np.hstack([X_train, np.expand_dims(y_train, axis=1)]), columns=None)
     df_test = pd.DataFrame(np.hstack([X_test, np.expand_dims(y_test, axis=1)]), columns=None)
     #
-    train_csv = os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv")
-    test_csv = os.path.join(PREPROCESSED_DATA_FOLDER, "test_data.csv")
-    # df_train.to_csv(train_csv, header=None, index=False)
-    # df_test.to_csv(test_csv, header=None, index=False)
+    train_csv = os.path.join(PREPROCESSED_DATA_FOLDER, f"train_data_{test_sub_ids[0]}.csv")
+    test_csv = os.path.join(PREPROCESSED_DATA_FOLDER, f"test_data_{test_sub_ids[0]}.csv")
+    df_train.to_csv(train_csv, header=None, index=False)
+    df_test.to_csv(test_csv, header=None, index=False)
 
     if duplicate_exist(train_csv, test_csv):
         raise Exception("Train and test data have duplicates")
 
     print("Running PCA")
-    X_pca, y = run_pca(X_train, y_train)
+    # X_pca, y = run_pca(X_train, y_train)
     # print("Running MDS")
     # X_mds, y = run_mds(X, y)
     # print("Running t-SNE")
     # X_tsne, y = run_tsne(X, y)
 
-    plot3d_embedding(X_pca, y)
+    # plot3d_embedding(X_pca, y)
 
     # x_mds, y = run_mds(x, y)
     # plot3d_embedding(x_mds, y)
