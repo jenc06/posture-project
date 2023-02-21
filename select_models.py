@@ -171,7 +171,6 @@ class PostureSensorDataset2D(Dataset):
 class MyMLP(nn.Module):
     def __init__(self, in_dim=9, out_dim=3):
         # super is a function used to call the init class. all functions from init will run
-    # def __init__(self, in_dim=18, out_dim=3):
         super().__init__()
         # make tensor 1D
         self.flatten = nn.Flatten()
@@ -391,6 +390,8 @@ def train_loop(dataloader, epoch, model, loss_fn, optimizer, scheduler=None, cnn
                 writer.add_scalar('training loss', loss, epoch)
                 writer.add_scalar('training acc', 100 * sum(corrects) / sum(sizes), epoch)
 
+    print("training metric: \n", cm)
+
 
 def test_loop(dataloader, epoch, model, loss_fn, cnn2d=False, writer=None):
     size = len(dataloader.dataset)
@@ -446,7 +447,7 @@ def test_loop(dataloader, epoch, model, loss_fn, cnn2d=False, writer=None):
         writer.add_scalar('test loss', test_loss, epoch)
         writer.add_scalar('test acc', 100*correct/size, epoch)
 
-    # print("test metric: ", cm)
+    print("test metric: \n", cm)
     return test_loss
 
 
@@ -554,7 +555,7 @@ def run_cnn2d(epochs: int = 15, arch='my_resnet', multichannel=False, acc_only=F
         test_loss = test_loop(test_dataloader, t, my_model, my_loss_fn,
                               writer=writer, cnn2d=True)
 
-        if early_stopping.early_stop(test_losss):
+        if early_stopping.early_stop(test_loss):
             print("We are at epoch:", t)
             break
 
