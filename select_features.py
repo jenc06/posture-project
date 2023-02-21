@@ -12,7 +12,7 @@ from sklearn import manifold
 # contains all the interpolated files
 from sklearn.decomposition import PCA
 
-PREPROCESSED_DATA_FOLDER = "./data/preprocessed/all/"
+PREPROCESSED_DATA_FOLDER = "./data/preprocessed/cross_val_all/"
 
 
 def select_acc(sensor_data):

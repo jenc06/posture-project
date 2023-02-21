@@ -1,4 +1,5 @@
 import os
+from typing import Optional, List
 
 # import PATH as PATH
 import pandas as pd
@@ -73,7 +74,6 @@ class PostureSensorDataset(Dataset):
 
         # use index idx to get columns from sensor data frame from index position 1 till end
         # make into numpy array
-        sensor_data = self.sensor_data_frame.iloc[idx, :9]
         if self.acc_only:
             sensor_data = self.sensor_data_frame.iloc[idx, :9]
         else:
@@ -83,14 +83,8 @@ class PostureSensorDataset(Dataset):
         # change data to 32-bit numbers
         sensor_data = sensor_data.astype('float32')
 
-
         # extract labels row by getting last column
         labels = self.sensor_data_frame.iloc[idx, -1]
-
-        if self.acc_only:
-            labels = self.sensor_data_frame.iloc[idx, -1]
-        else:
-            labels = self.sensor_data_frame.iloc[idx, -1]
 
         labels = np.array([labels])
         labels = labels.astype('int')
@@ -169,19 +163,21 @@ class PostureSensorDataset2D(Dataset):
 
 
 class MyMLP(nn.Module):
-    def __init__(self, in_dim=9, out_dim=3):
+    def __init__(self, in_dim=9, out_dim=3, acc_only=False):
         # super is a function used to call the init class. all functions from init will run
         super().__init__()
         # make tensor 1D
+        self.acc_only = acc_only
         self.flatten = nn.Flatten()
+
+        if acc_only:
+            in_dim = 9
+        else:
+            in_dim = 18
+
         # sequence of layers: linear layers apply linear transformation, ReLU is nonlinear activation function
         # LayerNorm = normalization layer. helps stabilize training
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(in_dim, 32),
-            nn.Linear(32, 64),
-            nn.ReLU(),
-            nn.LayerNorm(64),
-            nn.Linear(64, 32),
             nn.Linear(in_dim, 16),
             nn.LayerNorm(16),
             nn.ReLU(),
@@ -247,9 +243,9 @@ class ResidualBlock(nn.Module):
         residual = x
         out = self.conv1(x)
         out = self.bn1(out)
-        # out = self.relu(out)
-        # out = self.conv2(out)
-        # out = self.bn2(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
         if self.downsample:
             residual = self.downsample(x)
         out += residual
@@ -451,15 +447,18 @@ def test_loop(dataloader, epoch, model, loss_fn, cnn2d=False, writer=None):
     return test_loss
 
 
-def run_mlp(epochs: int = 15):
+def run_mlp(epochs: int = 15, acc_only=False):
     if epochs == 0:
         return "epochs was 0"
+
     # Need to load the train and test data separately
     # sensor_transform = transforms.Compose([transforms.ToTensor()])
-    posture_sensor_dataset_train = PostureSensorDataset(os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv"))
+    posture_sensor_dataset_train = PostureSensorDataset(os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv"),
+                                                        acc_only=acc_only)
     train_dataloader = DataLoader(posture_sensor_dataset_train, batch_size=16, shuffle=True, num_workers=0)
 
-    posture_sensor_dataset_test = PostureSensorDataset(os.path.join(PREPROCESSED_DATA_FOLDER, "test_data.csv"))
+    posture_sensor_dataset_test = PostureSensorDataset(os.path.join(PREPROCESSED_DATA_FOLDER, "test_data.csv"),
+                                                       acc_only=acc_only)
     test_dataloader = DataLoader(posture_sensor_dataset_test, batch_size=4, shuffle=False, num_workers=0)
 
     # Make a MLP model
@@ -484,13 +483,13 @@ def run_mlp(epochs: int = 15):
 
     best_loss = 1e9
     os.makedirs('./models', exist_ok=True)
-    early_stopping=EarlyStopper(patience=20 ,min_delta=0.05)
+    early_stopping=EarlyStopper(patience=20, min_delta=0.05)
     for t in range(epochs):
         print(f"Epoch {t + 1}\n-------------------------------")
         train_loop(train_dataloader, t, my_model, my_loss_fn, my_optimizer, scheduler=scheduler, writer=writer)
         test_loss = test_loop(test_dataloader, t, my_model, my_loss_fn, writer=writer)
         if early_stopping.early_stop(test_loss):
-            print("we are at epoch:",t)
+            print("we are at epoch:", t)
             break
 
         if test_loss < best_loss:
@@ -571,15 +570,21 @@ def run_cnn2d(epochs: int = 15, arch='my_resnet', multichannel=False, acc_only=F
     # return my_loss_fn
 
 
-def load_train_test_data(corrupt_test_data: bool = False):
-    train_data_csv = os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv")
+def load_train_test_data(corrupt_test_data: bool = False, sub_id: int=0):
+    if sub_id == 0:
+        train_data_csv = os.path.join(PREPROCESSED_DATA_FOLDER, "train_data.csv")
+    else:
+        train_data_csv = os.path.join(PREPROCESSED_DATA_FOLDER, f"train_data_{sub_id}.csv")
     train_df = pd.read_csv(train_data_csv)
     # frac=1 shuffle then return all rows of data
     train_df = train_df.sample(frac=1)
     X_train = train_df.iloc[:, :-1].values
     y_train = train_df.iloc[:, -1].values
 
-    test_data_csv = os.path.join(PREPROCESSED_DATA_FOLDER, "test_data.csv")
+    if sub_id == 0:
+        test_data_csv = os.path.join(PREPROCESSED_DATA_FOLDER, "test_data.csv")
+    else:
+        test_data_csv = os.path.join(PREPROCESSED_DATA_FOLDER, f"test_data_{sub_id}.csv")
     test_df = pd.read_csv(test_data_csv)
     test_df = test_df.sample(frac=1)
     X_test = test_df.iloc[:, :-1].values
@@ -625,7 +630,7 @@ def run_randomforest_classifer(X_train, y_train, X_test, y_test):
 
     # train a random forest model
     print("Random Forest using the raw data")
-    rfc_model = RandomForestClassifier(n_estimators=1000, max_depth=3, random_state=10)
+    rfc_model = RandomForestClassifier(n_estimators=100, max_depth=3, random_state=10)
     rfc_model.fit(X_train, y_train)
     print("Cross validation scores:")
     print(cross_val_score(RandomForestClassifier(max_depth=3, random_state=10), X_train, y_train, cv=cv))
@@ -646,10 +651,15 @@ def run_randomforest_classifer(X_train, y_train, X_test, y_test):
 
 
 if __name__ == "__main__":
-    X_tr, y_tr, X_te, y_te = load_train_test_data()
-    # run_mlp(epochs=1000)
+    for sid in range(13):
+        if sid == 0 or sid == 9:
+            continue
+        print(f"subject id: {sid}")
+        X_tr, y_tr, X_te, y_te = load_train_test_data(sub_id=sid)
+        run_xgboost_classifier(X_tr, y_tr, X_te, y_te)
+        run_randomforest_classifer(X_tr, y_tr, X_te, y_te)
+
+    # run_mlp(epochs=1000, acc_only=False)
     # run_cnn2d(epochs=1000, arch='cnn2d')
-    run_cnn2d(epochs=1000, arch='my_resnet', multichannel=True, acc_only=True)
+    # run_cnn2d(epochs=1000, arch='my_resnet', multichannel=True, acc_only=True)
     # run_cnn2d(epochs=1000, arch='resnet18_pretrained', multichannel=True)
-    # run_xgboost_classifier(X_tr, y_tr, X_te, y_te)
-    # run_randomforest_classifer(X_tr, y_tr, X_te, y_te)
