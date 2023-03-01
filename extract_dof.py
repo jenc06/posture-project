@@ -31,6 +31,7 @@ def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: 
     # use select functions to extract acc, mag, and gyro
     good_acc, mild_acc, bad_acc = select_acc(good_interp), select_acc(mild_interp), select_acc(bad_interp)
     good_gyr, mild_gyr, bad_gyr = select_gyr(good_interp), select_gyr(mild_interp), select_gyr(bad_interp)
+    good_mag, mild_mag, bad_mag = select_mag(good_interp), select_mag(mild_interp), select_mag(bad_interp)
 
     good_ft = good_acc
     mild_ft = mild_acc
@@ -41,7 +42,7 @@ def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: 
     y = np.hstack(
         [0 * np.ones(good_ft.shape[0]),
          1 * np.ones(mild_ft.shape[0]),
-         2 * np.ones(bad_ft.shape[0]) ]).T.astype(np.int64)
+         2 * np.ones(bad_ft.shape[0])]).T.astype(np.int64)
 
     return x, y
 
