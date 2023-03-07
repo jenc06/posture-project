@@ -1,22 +1,17 @@
-# usage: python3 stream_gyro_packed.py [mac1] [mac2] ... [mac(n)]
 from __future__ import print_function
-
 import mbientlab
 from mbientlab.metawear import MetaWear, libmetawear, parse_value
 from mbientlab.metawear.cbindings import *
 from time import sleep
-from threading import Event
 
 import csv
 import os
 import glob
 import argparse
-import platform
 import sys
 from datetime import date, datetime
 
 # test subject id, trial id, timestamp
-
 parser = argparse.ArgumentParser(description='IMU data collection.')
 parser.add_argument('--sub_id', type=str, help='subject id (000, 001, 002)')
 parser.add_argument('--pose', type=str, help='posture type (good, mild, bad)')
