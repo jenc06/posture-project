@@ -1,9 +1,5 @@
-import pandas as pd
-import matplotlib.pyplot as plt
+ import pandas as pd
 import os
-import glob
-import csv
-from csv import DictWriter
 
 #list file names
 file_path = "Documents/ASR/notebooks/interpolated data" 

@@ -1,14 +1,10 @@
-from typing import List, Any
-
 import pandas as pd
 import numpy as np
-from scipy import stats as st
 import matplotlib.pyplot as plt
 from scipy import interpolate
 import sys
 import os
 import glob
-import csv
 import warnings
 
 # Change CLASS to the target class label to process the data associated with the given class
@@ -222,4 +218,4 @@ if __name__ == "__main__":
                 final_df.to_csv(f"./data/preprocessed/all/final_interpolated_{cls}_s_{sub_id}_t_{trial_id}.csv")
 
                 # visualize the results
-                # test_visualization(df_list, interpolated_data)
+                test_visualization(df_list, interpolated_data)

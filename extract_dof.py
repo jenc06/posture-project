@@ -1,12 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import glob
 import os
-import re
-
-from matplotlib import colors
-from sklearn import manifold
 from sklearn.decomposition import PCA
 import matplotlib.cm as cm
 
@@ -51,15 +46,11 @@ def combine_cls_data(cls: str, these_sub_ids) -> np.ndarray:
     data_all = []
     for sub_id in these_sub_ids:
         print("SUB ID:", sub_id)
-        # print("PATH: ", os.path.join(PREPROCESSED_DATA_FOLDER, f"final_interpolated_{cls}_s_{sub_id:03}*.csv"))
         data_all += glob.glob(os.path.join(PREPROCESSED_DATA_FOLDER, f"final_interpolated_{cls}_s_{sub_id:03}"+"*.csv"))
 
-    # print("DATA ALL", data_all)
-    # combine all good data
     # make empty row with right size
     # have to stack data. if there is nothing on top, cannot stack. length has to be same to vertical length
     # loadtxt loads a text file into array
-    # print("DATA ALL SHAPE", data_all[0])
     data_tmp = np.loadtxt(data_all[0], delimiter=',', skiprows=1, usecols=range(2, 28))
     # make empty numpy array where u are workign with first row and number of total columns from first file
     data_comb = np.empty((0, data_tmp.shape[1]))
@@ -115,6 +106,7 @@ def plot3d_embedding(X, y, elev=50, azim=50) -> None:
 
 if __name__ == "__main__":
 
+    # all subjects included
     sub_ids = [0,1,2,3, 4, 5,6,7,8,10,11,12]
     good_combined = combine_cls_data('good', sub_ids)
     mild_combined = combine_cls_data('mild', sub_ids)
@@ -125,11 +117,5 @@ if __name__ == "__main__":
 
     print("Running PCA")
     X_pca, y = run_pca(X_final, y_final)
-    # print("Running MDS")
-    # X_mds, y = run_mds(X_final, y_final)
-    # print("Running t-SNE")
-    # X_tsne, y = run_tsne(X_final, y_final)
-
     plot3d_embedding(X_pca, y)
-    # plot3d_embedding(X_mds, y)
-    # plot3d_embedding(X_tsne, y)
+

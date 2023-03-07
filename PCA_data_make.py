@@ -57,14 +57,11 @@ def combine_cls_data(cls: str, sub_ids) -> np.ndarray:
         # put final_interpolated files in data_all list
         data_all += glob.glob(os.path.join(PREPROCESSED_DATA_FOLDER, f"final_interpolated_{cls}_s_{sub_id:03}*.csv"))
 
-    # print(data_all)
-    # combine all good data
-
     # make empty row with right size
     # have to stack data. if there is nothing on top, cannot stack. length has to be same to vertical length
     # loadtxt loads a text file into array
     data_tmp = np.loadtxt(data_all[0], delimiter=',', skiprows=1, usecols=range(2, 29))
-    # make empty numpy array where u are workign with first row and number of total columns from first file
+    # make empty numpy array where you are working with first row and number of total columns from first file
     data_comb = np.empty((0, data_tmp.shape[1]))
     for data in data_all:
         # load into variable
@@ -119,7 +116,6 @@ def plot3d_embedding(X, y, elev=50, azim=50) -> None:
             bbox=dict(alpha=0.9, edgecolor=txt_colors[label], facecolor=txt_colors[label]),
         )
 
-
     # Reorder the labels to have colors matching the cluster results
     # 0: purple (good), 1: green (mild), 2: red (bad)
     colors = cm.rainbow(np.linspace(0, 1, 3))
@@ -152,9 +148,7 @@ if __name__ == "__main__":
     bad_combined_test = combine_cls_data('bad', test_sub_ids)
 
     X_train, y_train = make_features(good_combined_train, mild_combined_train, bad_combined_train)
-    # print(X_train.shape, y_train.shape)
     X_test, y_test = make_features(good_combined_test, mild_combined_test, bad_combined_test)
-    # print(X_test.shape, y_test.shape)
 
     standardize = False
     pca_runner = PCARunner()
@@ -175,12 +169,13 @@ if __name__ == "__main__":
     df_test = pd.DataFrame(np.hstack([X_pca_test, np.expand_dims(y_test, axis=1)]), columns=None)
     train_csv = os.path.join(PREPROCESSED_DATA_FOLDER, f"train_data_pca.csv")
     test_csv = os.path.join(PREPROCESSED_DATA_FOLDER, f"test_data_pca.csv")
-    # df_train.to_csv(train_csv, header=None, index=False)
-    # df_test.to_csv(test_csv, header=None, index=False)
+    df_train.to_csv(train_csv, header=None, index=False)
+    df_test.to_csv(test_csv, header=None, index=False)
 
     if duplicate_exist(train_csv, test_csv):
         raise Exception("Train and test data have duplicates")
 
+    # visualize
     plot3d_embedding(X_pca_train, y_train)
     plot3d_embedding(X_pca_test, y_test)
 

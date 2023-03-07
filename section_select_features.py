@@ -58,10 +58,6 @@ def combine_cls_data(cls: str, sub_ids) -> np.ndarray:
         print(f"final_interpolated_{cls}_s_{sub_id:03}*.csv")
         data_all += glob.glob(os.path.join(PREPROCESSED_DATA_FOLDER, f"final_interpolated_{cls}_s_{sub_id:03}*.csv"))
 
-
-    # print(data_all)
-    # combine all good data
-
     # make empty row with right size
     # have to stack data. if there is nothing on top, cannot stack. length has to be same to vertical length
     # loadtxt loads a text file into array
@@ -77,20 +73,6 @@ def combine_cls_data(cls: str, sub_ids) -> np.ndarray:
     return data_comb
 
 
-def run_tsne(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    t_sne = manifold.TSNE(
-        n_components=3,
-        perplexity=30,
-        init="random",
-        n_iter=250,
-        random_state=0,
-    )
-    x_tsne_ = t_sne.fit_transform(x)
-    y_ = y.astype(np.int64)
-
-    return x_tsne_, y_
-
-
 def run_pca(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     pca = PCA(n_components=3)
     pca.fit(x)
@@ -98,21 +80,6 @@ def run_pca(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     y_ = y.astype(np.int64)
 
     return x_pca_, y_
-
-
-def run_mds(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    # MDS
-    md_scaling = manifold.MDS(
-        n_components=3,
-        max_iter=50,
-        n_init=4,
-        random_state=0,
-        normalized_stress=False,
-    )
-    x_mds_ = md_scaling.fit_transform(x)
-    y_ = y.astype(np.int64)
-
-    return x_mds_, y_
 
 
 def plot3d_embedding(X, y, elev=50, azim=50) -> None:
@@ -134,7 +101,6 @@ def plot3d_embedding(X, y, elev=50, azim=50) -> None:
             bbox=dict(alpha=0.9, edgecolor=txt_colors[label], facecolor=txt_colors[label]),
         )
 
-
     # Reorder the labels to have colors matching the cluster results
     # 0: purple (good), 1: green (mild), 2: red (bad)
     colors = cm.rainbow(np.linspace(0, 1, 3))
@@ -149,7 +115,7 @@ def plot3d_embedding(X, y, elev=50, azim=50) -> None:
 
 
 if __name__ == "__main__":
-    # separate data into each posture but NOT training and testing
+    # put wanted subject ids here
     sub_id_list = [2]
     good_combined = combine_cls_data('good', sub_id_list)
     mild_combined = combine_cls_data('mild', sub_id_list)
@@ -161,11 +127,5 @@ if __name__ == "__main__":
 
     print("Running PCA")
     X_pca, y = run_pca(X_final, y_final)
-    # print("Running MDS")
-    # X_mds, y = run_mds(X_final, y_final)
-    # print("Running t-SNE")
-    # X_tsne, y = run_tsne(X_final, y_final)
-
     plot3d_embedding(X_pca, y)
-    # plot3d_embedding(X_mds, y)
-    # plot3d_embedding(X_tsne, y)
+

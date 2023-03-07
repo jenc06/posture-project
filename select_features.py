@@ -3,15 +3,11 @@ import numpy as np
 import pandas as pd
 import glob
 import os
-
+from sklearn.decomposition import PCA
 from matplotlib import cm
-from sklearn import manifold
-# from sklearn.decomposition import PCA
-# import matplotlib.cm as cm
+
 
 # contains all the interpolated files
-from sklearn.decomposition import PCA
-
 PREPROCESSED_DATA_FOLDER = "./data/preprocessed/all/"
 
 
@@ -59,11 +55,8 @@ def make_features(good_interp: np.ndarray, mild_interp: np.ndarray, bad_interp: 
 def combine_cls_data(cls: str, sub_ids) -> np.ndarray:
     data_all = []
     for sub_id in sub_ids:
-        #put final_interpolated files in data_all list
+        # put final_interpolated files in data_all list
         data_all += glob.glob(os.path.join(PREPROCESSED_DATA_FOLDER, f"final_interpolated_{cls}_s_{sub_id:03}*.csv"))
-
-    # print(data_all)
-    # combine all good data
 
     # make empty row with right size
     # have to stack data. if there is nothing on top, cannot stack. length has to be same to vertical length
@@ -91,21 +84,6 @@ def duplicate_exist(train_csv, test_csv):
     return True if len(unq[count>1]) > 0 else False
 
 
-def run_tsne(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    t_sne = manifold.TSNE(
-        n_components=3,
-        perplexity=30,
-        init="random",
-        n_iter=250,
-        random_state=0,
-    )
-    x_tsne_ = t_sne.fit_transform(x)
-    y_ = y.astype(np.int64)
-
-    return x_tsne_, y_
-
-
-
 def run_pca(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     pca = PCA(n_components=3)
     pca.fit(x)
@@ -114,20 +92,6 @@ def run_pca(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
     return x_pca_, y_
 
-
-# def run_mds(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-#     # MDS
-#     md_scaling = manifold.MDS(
-#         n_components=3,
-#         max_iter=50,
-#         n_init=4,
-#         random_state=0,
-#         normalized_stress=False,
-#     )
-#     x_mds_ = md_scaling.fit_transform(x)
-#     y_ = y.astype(np.int64)
-#
-#     return x_mds_, y_
 
 def plot3d_embedding(X, y, elev=50, azim=50) -> None:
     fig = plt.figure(1, figsize=(8, 6))
@@ -179,17 +143,11 @@ if __name__ == "__main__":
     mild_combined_test = combine_cls_data('mild', test_sub_ids)
     bad_combined_test = combine_cls_data('bad', test_sub_ids)
 
-    # print(good_combined_train.shape, mild_combined_train.shape, bad_combined_train.shape)
-    # print(good_combined_test.shape, mild_combined_test.shape, bad_combined_test.shape)
-
     X_train, y_train = make_features(good_combined_train, mild_combined_train, bad_combined_train)
-    # print(X_train.shape, y_train.shape)
     X_test, y_test = make_features(good_combined_test, mild_combined_test, bad_combined_test)
-    # print(X_test.shape, y_test.shape)
 
     df_train = pd.DataFrame(np.hstack([X_train, np.expand_dims(y_train, axis=1)]), columns=None)
     df_test = pd.DataFrame(np.hstack([X_test, np.expand_dims(y_test, axis=1)]), columns=None)
-    #
     train_csv = os.path.join(PREPROCESSED_DATA_FOLDER, f"train_data_{test_sub_ids[0]}.csv")
     test_csv = os.path.join(PREPROCESSED_DATA_FOLDER, f"test_data_{test_sub_ids[0]}.csv")
     df_train.to_csv(train_csv, header=None, index=False)
@@ -199,16 +157,5 @@ if __name__ == "__main__":
         raise Exception("Train and test data have duplicates")
 
     print("Running PCA")
-    # X_pca, y = run_pca(X_train, y_train)
-    # print("Running MDS")
-    # X_mds, y = run_mds(X, y)
-    # print("Running t-SNE")
-    # X_tsne, y = run_tsne(X, y)
-
-    # plot3d_embedding(X_pca, y)
-
-    # x_mds, y = run_mds(x, y)
-    # plot3d_embedding(x_mds, y)
-    #
-    # x_tsne, y = run_mds(x, y)
-    # plot3d_embedding(x_tsne, y)
+    X_pca, y = run_pca(X_train, y_train)
+    plot3d_embedding(X_pca, y)
