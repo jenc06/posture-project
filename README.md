@@ -1,28 +1,99 @@
-# asr-project-2023
-cnn.py: CNN model to classify posture. 
+  # Posture Project                                                             
+                                                                                
+  > Are you sitting like a shrimp? This can (theoretically) help you.        
+           
+  A wearable ML pipeline that classifies posture — **good**, **mild**, or       
+  **bad** — using real IMU sensor data collected from human subjects. Built
+  end-to-end: from streaming raw motion data over Bluetooth to training and     
+  comparing deep learning and classical models.
 
-collect_imu_data: takes sensor readings and saves them as a CSV file
+  ---
 
-combine_columns: combines columns of individual sensor readings into 1 CSV file
+  ## How It Works
 
-extract_dof.py: extract any combination of accelerometer, gyroscope, and/or magnetometer data from the CSV file
+  Three **MetaWear** sensors are placed on the body and stream motion data      
+  wirelessly at 50Hz over BLE. Each sensor captures accelerometer, gyroscope,
+  and magnetometer readings simultaneously. The data is merged, time-aligned,   
+  reduced with PCA, and fed into a suite of models to find what classifies
+  posture best.
 
-interpolate.py: use interpolation to time-align the data from different sensors.
+  wear sensors → stream over BLE → align & clean → reduce with PCA → classify   
+   
+  ---                                                                           
+           
+  ## The Hardware
 
-lazypredict.py: use the lazypredict python package to run 27 different ML models and see their accuracies, runtime, balanced accuracy, and F1 score
+  **MetaWear by mbientlab** — 3 devices, worn on the body, connected over
+  Bluetooth Low Energy.
 
-PCA_cv_data_make: create CSV files for PCA cross validation where the training = 1 human subject and testing will be all other subjects+spine model
+  Each device runs three sensors in parallel:
 
-PCA_data_make: apply PCA to interpolated accelerometer data and save as training and testing CSV file. Visualize in 3d scatterplot.
+  - **Accelerometer** (BMI270) — captures linear motion at ±4G                  
+  - **Gyroscope** (BMI270) — captures rotation at ±1000 dps
+  - **Magnetometer** (BMM150) — captures orientation relative to Earth's field  
+           
+  All sensors sample at **50Hz**. Each session is tagged with a subject ID,     
+  trial ID, and posture label (`good` / `mild` / `bad`).
+                                                                                
+  ---      
 
-prototype_features.ipynb: try different data transformation methods: PCA, MDS, TSNE, LLE(locally linear embedding). Visualize as a heat map
+  ## The Pipeline
 
-section_select_features.py: visualize a wanted section of data instead of the whole folder. Can pick certain subjects' data to graph on a 3d scatterplot
+  **Collect**
+  Stream all three sensors from all three devices simultaneously and save to
+  CSV.
 
-select_features.py: same as PCA_data_make but applied to accelerometer, gyroscope, and magnetometer data. 
+  ```bash
+  python collect_imu_data.py --sub_id 001 --pose good --trial_id 000
+  ```
+                                                                                
+  Merge & Clean
+  Combine per-sensor files, extract the axes you want, then use interpolation to
+   time-align readings across devices.
 
-select_models.py: tests various machine learning models. Includes a dataloader to extract x and y, an MLP model, CNN model, Resnet model, xgboost classifier model, and random forest classifier model. MLP model includes an early stopping function.
+  python combine_columns.py
+  python extract_dof.py                                                         
+  python interpolate.py
+                                                                                
+  Reduce   
+  Apply PCA to compress the feature space. Visualize in 3D scatter plots or heat
+   maps. Try alternatives (MDS, t-SNE, LLE) in the notebook.                    
+   
+  python select_features.py                                                     
+           
+  Train
+  Benchmark 27 models at once with LazyPredict, then go deep on the best
+  candidates.
 
-slice_times.py: split into sections of 25 rows of data and saved as individual CSV files. Did not use in final project
+  python lazypredict.py     # broad sweep
+  python select_models.py   # MLP, XGBoost, Random Forest
+  python cnn.py             # RNN                                               
+   
+  ---                                                                           
+  The Models
+            
+  MLP — two hidden layers with LayerNorm, 50% dropout, ASGD optimizer, and early
+   stopping so it knows when to quit. Trained with TensorBoard logging and      
+  per-class confusion matrices.
+                                                                                
+  XGBoost — multi-class softmax with 5-fold cross validation. Fast and
+  competitive.
 
+  Random Forest — 100 estimators, a solid baseline.
 
+  RNN — single-layer recurrent model treating sensor readings as sequences.     
+   
+  Leave-one-subject-out cross validation tests generalization across people, not
+   just trials.
+
+  ---
+  Setup
+
+  pip install torch torchvision torchmetrics xgboost scikit-learn lazypredict
+  pandas numpy matplotlib mbientlab-metawear                                    
+   
+  ---                                                                           
+  Built With
+  ```bash
+  PyTorch · XGBoost · scikit-learn · LazyPredict · mbientlab MetaWear SDK
+  ```
